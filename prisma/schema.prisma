@@ -8,25 +8,54 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+model Session {
+  id              String           @id @default(uuid())
+  source_filename String?
+  started_at      DateTime         @default(now())
+  closed_at       DateTime?
+  products        Product[]
+  exceptions      ExceptionQueue[]
+
+  @@index([started_at])
+}
+
 model Product {
-  id             String   @id @default(uuid())
-  ean            String   @unique
+  id             String       @id @default(uuid())
+  session_id     String
+  session        Session      @relation(fields: [session_id], references: [id], onDelete: Cascade)
+  ean            String
   name           String
   purchase_price Float?
   selling_price  Float?
   mrp            Float?
   original_data  Json
-  status         String   @default("pending")
-  version        Int      @default(1)
-  updated_at     DateTime @updatedAt
+  status         String       @default("pending")
+  version        Int          @default(1)
+  updated_at     DateTime     @updatedAt
+  audit_entries  AuditEntry[]
 
-  @@index([status])
+  @@unique([session_id, ean])
+  @@index([session_id, status])
+}
+
+model AuditEntry {
+  id             String   @id @default(uuid())
+  product_id     String
+  product        Product  @relation(fields: [product_id], references: [id], onDelete: Cascade)
+  purchase_price Float?
+  selling_price  Float?
+  mrp            Float?
+  audited_at     DateTime @default(now())
+
+  @@index([product_id, audited_at])
 }
 
 model ExceptionQueue {
   id         String   @id @default(uuid())
+  session_id String?
+  session    Session? @relation(fields: [session_id], references: [id], onDelete: SetNull)
   barcode    String
   created_at DateTime @default(now())
 
-  @@index([created_at])
+  @@index([session_id, created_at])
 }
