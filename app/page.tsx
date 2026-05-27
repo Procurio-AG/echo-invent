@@ -4,6 +4,7 @@ import { useState } from "react";
 import { SessionPanel } from "@/app/components/SessionPanel";
 import { UploadForm } from "@/app/components/UploadForm";
 import { ExportCard } from "@/app/components/ExportCard";
+import { ExceptionsCard } from "@/app/components/ExceptionsCard";
 
 export default function DashboardPage() {
   const [refreshKey, setRefreshKey] = useState(0);
@@ -31,18 +32,8 @@ export default function DashboardPage() {
 
       <section className="grid gap-4 sm:grid-cols-2">
         <ExportCard refreshKey={refreshKey} />
-        <Card title="Exceptions" hint="Unknown barcodes" />
+        <ExceptionsCard refreshKey={refreshKey} />
       </section>
-    </div>
-  );
-}
-
-function Card({ title, hint }: { title: string; hint: string }) {
-  return (
-    <div className="rounded-lg border border-border bg-surface p-5">
-      <p className="text-sm font-medium">{title}</p>
-      <p className="mt-1 text-xs text-muted">{hint}</p>
-      <p className="mt-6 text-xs text-muted">UI wiring TBD.</p>
     </div>
   );
 }
