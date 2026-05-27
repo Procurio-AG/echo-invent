@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "react-hot-toast";
 
 type ActiveSessionResponse = {
@@ -18,6 +18,9 @@ export function SessionPanel({ refreshKey }: { refreshKey: number }) {
   const [loading, setLoading] = useState(true);
   const [closing, setClosing] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const cancelBtnRef = useRef<HTMLButtonElement>(null);
+  const confirmBtnRef = useRef<HTMLButtonElement>(null);
 
   const fetchActive = useCallback(async () => {
     try {
@@ -34,6 +37,45 @@ export function SessionPanel({ refreshKey }: { refreshKey: number }) {
   useEffect(() => {
     fetchActive();
   }, [fetchActive, refreshKey]);
+
+  useEffect(() => {
+    if (!confirmOpen) return;
+    // Focus the safe default (Cancel) on open.
+    cancelBtnRef.current?.focus();
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        if (!closing) setConfirmOpen(false);
+        return;
+      }
+      if (e.key !== "Tab") return;
+      const focusables = [cancelBtnRef.current, confirmBtnRef.current].filter(
+        (el): el is HTMLButtonElement => !!el && !el.disabled
+      );
+      if (focusables.length === 0) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [confirmOpen, closing]);
+
+  // Return focus to the trigger only on a real close transition (not on mount).
+  const wasOpenRef = useRef(false);
+  useEffect(() => {
+    if (wasOpenRef.current && !confirmOpen) {
+      triggerRef.current?.focus({ preventScroll: true });
+    }
+    wasOpenRef.current = confirmOpen;
+  }, [confirmOpen]);
 
   const closeSession = async () => {
     setClosing(true);
@@ -86,6 +128,7 @@ export function SessionPanel({ refreshKey }: { refreshKey: number }) {
           </dl>
 
           <button
+            ref={triggerRef}
             type="button"
             onClick={() => setConfirmOpen(true)}
             disabled={closing}
@@ -97,15 +140,23 @@ export function SessionPanel({ refreshKey }: { refreshKey: number }) {
       )}
 
       {confirmOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="close-audit-title"
+        >
           <div className="w-full max-w-sm rounded-lg border border-border bg-surface p-5">
-            <p className="text-sm font-medium">Close current audit?</p>
+            <p id="close-audit-title" className="text-sm font-medium">
+              Close current audit?
+            </p>
             <p className="mt-2 text-xs text-muted">
               This closes the active session. The next upload will start a fresh
               audit. Existing data stays in the database.
             </p>
             <div className="mt-4 flex gap-2">
               <button
+                ref={cancelBtnRef}
                 type="button"
                 onClick={() => setConfirmOpen(false)}
                 disabled={closing}
@@ -114,6 +165,7 @@ export function SessionPanel({ refreshKey }: { refreshKey: number }) {
                 Cancel
               </button>
               <button
+                ref={confirmBtnRef}
                 type="button"
                 onClick={closeSession}
                 disabled={closing}
