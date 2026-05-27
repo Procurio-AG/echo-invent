@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { SessionPanel } from "@/app/components/SessionPanel";
 import { UploadForm } from "@/app/components/UploadForm";
+import { ExportCard } from "@/app/components/ExportCard";
 
 export default function DashboardPage() {
   const [refreshKey, setRefreshKey] = useState(0);
@@ -29,7 +30,7 @@ export default function DashboardPage() {
       </section>
 
       <section className="grid gap-4 sm:grid-cols-2">
-        <Card title="Export" hint="Updated rows → Excel" />
+        <ExportCard refreshKey={refreshKey} />
         <Card title="Exceptions" hint="Unknown barcodes" />
       </section>
     </div>
@@ -41,7 +42,7 @@ function Card({ title, hint }: { title: string; hint: string }) {
     <div className="rounded-lg border border-border bg-surface p-5">
       <p className="text-sm font-medium">{title}</p>
       <p className="mt-1 text-xs text-muted">{hint}</p>
-      <p className="mt-6 text-xs text-muted">Coming in Prompt 3.</p>
+      <p className="mt-6 text-xs text-muted">UI wiring TBD.</p>
     </div>
   );
 }
