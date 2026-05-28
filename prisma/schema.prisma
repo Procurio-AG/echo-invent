@@ -25,6 +25,7 @@ model Product {
   session        Session      @relation(fields: [session_id], references: [id], onDelete: Cascade)
   ean            String
   name           String
+  category       String?
   purchase_price Float?
   selling_price  Float?
   mrp            Float?
