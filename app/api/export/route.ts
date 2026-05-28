@@ -33,11 +33,37 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "No updated rows to export." }, { status: 404 });
   }
 
-  const firstOriginal = products[0].original_data as Record<string, unknown>;
+  // Prefer a product with real original_data so column order matches the source workbook.
+  // Manually-created products carry an empty {} — fall back to a minimal default set.
+  const seed =
+    products.find((p) => {
+      const data = p.original_data as Record<string, unknown>;
+      return data && Object.keys(data).length > 0;
+    }) ?? null;
+
+  const DEFAULT_COLUMNS = [
+    "Category Name",
+    "Item Name",
+    "EAN",
+    "Purchase Price",
+    "MRP",
+    "Selling Price",
+  ];
+
+  const firstOriginal = seed
+    ? (seed.original_data as Record<string, unknown>)
+    : (Object.fromEntries(DEFAULT_COLUMNS.map((c) => [c, null])) as Record<string, unknown>);
   const headers = resolveHeaders(firstOriginal);
 
   const rows = products.map((p) => {
     const original = { ...(p.original_data as Record<string, unknown>) };
+    // Manually-created rows have empty original_data — seed them with the chosen column shape.
+    if (Object.keys(original).length === 0) {
+      for (const key of Object.keys(firstOriginal)) original[key] = null;
+    }
+    if (headers.name) original[headers.name] = p.name;
+    if (headers.category) original[headers.category] = p.category;
+    if (headers.ean) original[headers.ean] = p.ean;
     if (headers.purchase_price) original[headers.purchase_price] = p.purchase_price;
     if (headers.selling_price) original[headers.selling_price] = p.selling_price;
     if (headers.mrp) original[headers.mrp] = p.mrp;
