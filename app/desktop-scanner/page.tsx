@@ -25,7 +25,9 @@ type SessionState =
   | { kind: "no-active" }
   | { kind: "active"; sessionId: string };
 
-type Loaded = { product: Product; previousAudit: AuditEntry | null };
+type Loaded =
+  | { kind: "edit"; product: Product; previousAudit: AuditEntry | null }
+  | { kind: "create"; ean: string };
 
 export default function DesktopScannerPage() {
   const [session, setSession] = useState<SessionState>({ kind: "loading" });
@@ -61,20 +63,17 @@ export default function DesktopScannerPage() {
         });
         const data = await res.json();
         if (res.status === 404 && data.code === "NOT_FOUND") {
-          await fetch("/api/exception", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ barcode: ean }),
-          });
-          toast(`Unknown barcode ${ean} — logged to exceptions`, {
-            icon: "⚠",
-            duration: 3000,
+          setLoaded({ kind: "create", ean });
+          toast(`New barcode ${ean} — fill in details`, {
+            icon: "✚",
+            duration: 2500,
             style: {
               background: "#3b2f12",
               color: "#fde68a",
               border: "1px solid #b45309",
             },
           });
+          setTimeout(() => formRef.current?.focusFirstField(), 0);
           return;
         }
         if (res.status === 409 && data.code === "NO_ACTIVE_SESSION") {
@@ -86,7 +85,11 @@ export default function DesktopScannerPage() {
           toast.error(data.error ?? "Lookup failed.");
           return;
         }
-        setLoaded({ product: data.product, previousAudit: data.previousAudit });
+        setLoaded({
+          kind: "edit",
+          product: data.product,
+          previousAudit: data.previousAudit,
+        });
         setTimeout(() => formRef.current?.focusFirstField(), 0);
       } catch {
         toast.error("Network error.");
@@ -154,7 +157,7 @@ export default function DesktopScannerPage() {
 
           {looking && <p className="text-xs text-muted">Looking up…</p>}
 
-          {loaded && (
+          {loaded && loaded.kind === "edit" && (
             <div className="space-y-3">
               {loaded.previousAudit && (
                 <PreviousAuditBanner audit={loaded.previousAudit} />
@@ -167,6 +170,17 @@ export default function DesktopScannerPage() {
                 variant="desktop"
               />
             </div>
+          )}
+
+          {loaded && loaded.kind === "create" && (
+            <ProductForm
+              ref={formRef}
+              mode="create"
+              ean={loaded.ean}
+              onSaved={returnFocusToScanner}
+              onCancel={returnFocusToScanner}
+              variant="desktop"
+            />
           )}
         </>
       )}
