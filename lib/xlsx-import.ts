@@ -18,6 +18,7 @@ export type ParseResult = {
 export type HeaderMap = {
   ean?: string;
   name?: string;
+  category?: string;
   purchase_price?: string;
   selling_price?: string;
   mrp?: string;
@@ -26,6 +27,7 @@ export type HeaderMap = {
 const HEADER_CANDIDATES = {
   ean: ["ean", "barcode", "bar code"],
   name: ["item name", "product name", "name", "description"],
+  category: ["category name", "category"],
   purchase_price: ["purchase price", "cost price", "cost", "pp"],
   selling_price: ["selling price", "sell price", "sp"],
   mrp: ["mrp", "max retail price", "maximum retail price"],
@@ -40,6 +42,7 @@ export function resolveHeaders(sample: Record<string, unknown>): HeaderMap {
   return {
     ean: find(HEADER_CANDIDATES.ean),
     name: find(HEADER_CANDIDATES.name),
+    category: find(HEADER_CANDIDATES.category),
     purchase_price: find(HEADER_CANDIDATES.purchase_price),
     selling_price: find(HEADER_CANDIDATES.selling_price),
     mrp: find(HEADER_CANDIDATES.mrp),

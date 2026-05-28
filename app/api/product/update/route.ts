@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { isKnownSubcategory } from "@/lib/categories";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -7,6 +8,8 @@ export const dynamic = "force-dynamic";
 type Body = {
   ean?: string;
   version?: number;
+  name?: string;
+  category?: string | null;
   purchase_price?: number | null;
   selling_price?: number | null;
   mrp?: number | null;
@@ -32,6 +35,31 @@ export async function POST(req: Request) {
   if (!ean) return NextResponse.json({ error: "ean required." }, { status: 400 });
   if (typeof version !== "number" || !Number.isInteger(version) || version < 1) {
     return NextResponse.json({ error: "version (int >= 1) required." }, { status: 400 });
+  }
+
+  let name: string | undefined;
+  if (body.name !== undefined) {
+    const trimmed = body.name.trim();
+    if (trimmed === "") {
+      return NextResponse.json({ error: "name cannot be empty." }, { status: 400 });
+    }
+    name = trimmed;
+  }
+
+  let category: string | null | undefined;
+  if (body.category !== undefined) {
+    if (body.category === null || body.category === "") {
+      category = null;
+    } else {
+      const trimmed = body.category.trim();
+      if (!isKnownSubcategory(trimmed)) {
+        return NextResponse.json(
+          { error: `Unknown category: ${trimmed}` },
+          { status: 400 }
+        );
+      }
+      category = trimmed;
+    }
   }
 
   const purchase_price = toNullableNumber(body.purchase_price);
@@ -64,6 +92,8 @@ export async function POST(req: Request) {
     const updated = await tx.product.update({
       where: { id: existing.id, version },
       data: {
+        ...(name !== undefined ? { name } : {}),
+        ...(category !== undefined ? { category } : {}),
         ...(purchase_price !== undefined ? { purchase_price } : {}),
         ...(selling_price !== undefined ? { selling_price } : {}),
         ...(mrp !== undefined ? { mrp } : {}),
