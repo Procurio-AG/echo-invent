@@ -1,0 +1,38 @@
+# Local Postgres for echo-invent (branch: local-db)
+#
+# Drop-in replacement for Supabase. The app only ever talks to the DB through
+# Prisma's two connection strings (DATABASE_URL + DIRECT_URL), so pointing those
+# at this container is the *entire* switch — no application code changes.
+#
+# Usage:
+#   docker compose up -d        # start Postgres on localhost:5432
+#   ./scripts/db-switch.sh local    # point the 2 keys at this container
+#   npx prisma migrate deploy   # apply schema
+#   docker compose down         # stop (keeps data in the named volume)
+#   docker compose down -v      # stop AND wipe data
+#
+# If host port 5432 is already taken (e.g. a native Postgres), change the host
+# side of the mapping below to 5433 and update POSTGRES_PORT in .env.local-db.
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: echo-invent-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: echo
+      POSTGRES_PASSWORD: echo
+      POSTGRES_DB: echo
+    ports:
+      - "5432:5432"
+    volumes:
+      - echo_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U echo -d echo"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  echo_pgdata:
+    name: echo_invent_pgdata
