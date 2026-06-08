@@ -55,6 +55,21 @@ function fieldStr(n: number | null): string {
   return n === null ? "" : String(n);
 }
 
+// price = MRP × (1 − discount%) ; discount% = (1 − price / MRP) × 100
+function priceFromDiscount(mrpNum: number, discNum: number): number {
+  return round2(mrpNum * (1 - discNum / 100));
+}
+
+function discountFromPrice(mrpNum: number, priceNum: number): number {
+  return round2((1 - priceNum / mrpNum) * 100);
+}
+
+// Initial discount-box value derived from an existing price + MRP.
+function discountStr(price: number | null, mrp: number | null): string {
+  if (price === null || mrp === null || mrp === 0) return "";
+  return String(discountFromPrice(mrp, price));
+}
+
 export const ProductForm = forwardRef<ProductFormHandle, Props>(function ProductForm(
   props,
   ref
@@ -67,13 +82,20 @@ export const ProductForm = forwardRef<ProductFormHandle, Props>(function Product
   const initialPp = isCreate ? "" : fieldStr(props.product.purchase_price);
   const initialMrp = isCreate ? "" : fieldStr(props.product.mrp);
   const initialSp = isCreate ? "" : fieldStr(props.product.selling_price);
+  const initialPpDisc = isCreate
+    ? ""
+    : discountStr(props.product.purchase_price, props.product.mrp);
+  const initialSpDisc = isCreate
+    ? ""
+    : discountStr(props.product.selling_price, props.product.mrp);
 
   const [name, setName] = useState<string>(initialName);
   const [category, setCategory] = useState<string>(initialCategory);
   const [pp, setPp] = useState<string>(initialPp);
   const [mrp, setMrp] = useState<string>(initialMrp);
   const [sp, setSp] = useState<string>(initialSp);
-  const [spTouched, setSpTouched] = useState(false);
+  const [ppDisc, setPpDisc] = useState<string>(initialPpDisc);
+  const [spDisc, setSpDisc] = useState<string>(initialSpDisc);
   const [saving, setSaving] = useState(false);
   const [locked, setLocked] = useState(false);
 
@@ -124,19 +146,50 @@ export const ProductForm = forwardRef<ProductFormHandle, Props>(function Product
     setPp(initialPp);
     setMrp(initialMrp);
     setSp(initialSp);
-    setSpTouched(false);
+    setPpDisc(initialPpDisc);
+    setSpDisc(initialSpDisc);
     setLocked(false);
     if (!initialCategory) setParentFilter("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resetKey]);
 
-  // Auto-calc SP = PP × 1.10 while user hasn't manually edited SP.
-  useEffect(() => {
-    if (spTouched) return;
-    const ppNum = toNumOrNull(pp);
-    if (ppNum === null) return;
-    setSp(String(round2(ppNum * 1.1)));
-  }, [pp, spTouched]);
+  // ── MRP-discount calculator ───────────────────────────────────────────────
+  // Purchase/selling price and their "% off MRP" boxes stay in sync: editing a
+  // discount recomputes its price, editing a price back-fills its discount, and
+  // changing MRP re-derives both prices from the current discounts. Typing in a
+  // price box always overwrites the calculated value.
+  const handleMrpChange = (next: string) => {
+    setMrp(next);
+    const mrpNum = toNumOrNull(next);
+    if (!mrpNum) return;
+    const pd = toNumOrNull(ppDisc);
+    if (pd !== null) setPp(String(priceFromDiscount(mrpNum, pd)));
+    const sd = toNumOrNull(spDisc);
+    if (sd !== null) setSp(String(priceFromDiscount(mrpNum, sd)));
+  };
+
+  const handlePriceChange = (
+    next: string,
+    setPrice: (s: string) => void,
+    setDisc: (s: string) => void
+  ) => {
+    setPrice(next);
+    const mrpNum = toNumOrNull(mrp);
+    const priceNum = toNumOrNull(next);
+    if (next.trim() === "") setDisc("");
+    else if (mrpNum && priceNum !== null) setDisc(String(discountFromPrice(mrpNum, priceNum)));
+  };
+
+  const handleDiscChange = (
+    next: string,
+    setDisc: (s: string) => void,
+    setPrice: (s: string) => void
+  ) => {
+    setDisc(next);
+    const mrpNum = toNumOrNull(mrp);
+    const discNum = toNumOrNull(next);
+    if (mrpNum && discNum !== null) setPrice(String(priceFromDiscount(mrpNum, discNum)));
+  };
 
   const handleParentChange = (next: string) => {
     setParentFilter(next);
@@ -301,49 +354,86 @@ export const ProductForm = forwardRef<ProductFormHandle, Props>(function Product
           </label>
         </div>
 
-        <div className={"grid gap-4 " + (big ? "" : "sm:grid-cols-3")}>
-          <label className="space-y-1">
-            <span className={labelClass}>Purchase price</span>
+        <label className="space-y-1">
+          <span className={labelClass}>MRP</span>
+          <input
+            type="text"
+            inputMode="decimal"
+            value={mrp}
+            onChange={(e) => handleMrpChange(e.target.value)}
+            disabled={locked}
+            className={inputClass}
+            placeholder="—"
+          />
+        </label>
+
+        <div className="space-y-1">
+          <span className={labelClass}>Purchase price</span>
+          <div className="flex gap-2">
+            <div className="relative w-28 shrink-0">
+              <input
+                type="text"
+                inputMode="decimal"
+                value={ppDisc}
+                onChange={(e) => handleDiscChange(e.target.value, setPpDisc, setPp)}
+                disabled={locked}
+                className={inputClass + " pr-7 text-right"}
+                placeholder="0"
+                aria-label="Purchase discount percent off MRP"
+              />
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted">
+                %
+              </span>
+            </div>
             <input
               ref={ppRef}
               type="text"
               inputMode="decimal"
               value={pp}
-              onChange={(e) => setPp(e.target.value)}
+              onChange={(e) => handlePriceChange(e.target.value, setPp, setPpDisc)}
               disabled={locked}
-              className={inputClass}
-              placeholder="—"
+              className={inputClass + " flex-1"}
+              placeholder="price"
+              aria-label="Purchase price"
             />
-          </label>
-          <label className="space-y-1">
-            <span className={labelClass}>MRP</span>
-            <input
-              type="text"
-              inputMode="decimal"
-              value={mrp}
-              onChange={(e) => setMrp(e.target.value)}
-              disabled={locked}
-              className={inputClass}
-              placeholder="—"
-            />
-          </label>
-          <label className="space-y-1">
-            <span className={labelClass}>
-              Selling price <span className="text-muted/70">(auto +10%)</span>
-            </span>
+          </div>
+          <span className="block text-[10px] text-muted/70">
+            % off MRP fills the price — or type the price directly
+          </span>
+        </div>
+
+        <div className="space-y-1">
+          <span className={labelClass}>Selling price</span>
+          <div className="flex gap-2">
+            <div className="relative w-28 shrink-0">
+              <input
+                type="text"
+                inputMode="decimal"
+                value={spDisc}
+                onChange={(e) => handleDiscChange(e.target.value, setSpDisc, setSp)}
+                disabled={locked}
+                className={inputClass + " pr-7 text-right"}
+                placeholder="0"
+                aria-label="Selling discount percent off MRP"
+              />
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted">
+                %
+              </span>
+            </div>
             <input
               type="text"
               inputMode="decimal"
               value={sp}
-              onChange={(e) => {
-                setSpTouched(true);
-                setSp(e.target.value);
-              }}
+              onChange={(e) => handlePriceChange(e.target.value, setSp, setSpDisc)}
               disabled={locked}
-              className={inputClass}
-              placeholder="—"
+              className={inputClass + " flex-1"}
+              placeholder="price"
+              aria-label="Selling price"
             />
-          </label>
+          </div>
+          <span className="block text-[10px] text-muted/70">
+            % off MRP fills the price — or type the price directly
+          </span>
         </div>
       </div>
 
