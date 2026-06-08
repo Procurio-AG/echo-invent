@@ -32,9 +32,25 @@ export async function POST(req: Request) {
 
   const { rows, skippedNoEan, totalDataRows } = parsed;
 
-  const session =
-    (await prisma.session.findFirst({ where: { closed_at: null } })) ??
-    (await prisma.session.create({ data: { source_filename: file.name } }));
+  const findOpen = () =>
+    prisma.session.findFirst({
+      where: { closed_at: null },
+      orderBy: { started_at: "desc" },
+    });
+
+  let session = await findOpen();
+  if (!session) {
+    try {
+      session = await prisma.session.create({ data: { source_filename: file.name } });
+    } catch (err) {
+      // A concurrent upload won the race and created the open session first
+      // (guarded by the one-open-session partial unique index). Reuse it.
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+        session = await findOpen();
+      }
+      if (!session) throw err;
+    }
+  }
 
   if (rows.length === 0) {
     return NextResponse.json({
@@ -65,10 +81,17 @@ export async function POST(req: Request) {
     else refreshRows.push(row);
   }
 
+  // Chunk DB writes so a full-sheet import doesn't become one oversized query
+  // (createMany param limit) or one giant interactive transaction that exhausts
+  // the connection pool / blows past pool_timeout on the Supabase pooler.
+  const INSERT_CHUNK = 500;
+  const REFRESH_CHUNK = 200;
+
   let inserted = 0;
-  if (newRows.length > 0) {
+  for (let i = 0; i < newRows.length; i += INSERT_CHUNK) {
+    const chunk = newRows.slice(i, i + INSERT_CHUNK);
     const result = await prisma.product.createMany({
-      data: newRows.map((r) => ({
+      data: chunk.map((r) => ({
         session_id: session.id,
         ean: r.ean,
         name: r.name,
@@ -79,13 +102,14 @@ export async function POST(req: Request) {
       })),
       skipDuplicates: true,
     });
-    inserted = result.count;
+    inserted += result.count;
   }
 
   let refreshed = 0;
-  if (refreshRows.length > 0) {
+  for (let i = 0; i < refreshRows.length; i += REFRESH_CHUNK) {
+    const chunk = refreshRows.slice(i, i + REFRESH_CHUNK);
     await prisma.$transaction(
-      refreshRows.map((r) =>
+      chunk.map((r) =>
         prisma.product.update({
           where: { session_id_ean: { session_id: session.id, ean: r.ean } },
           data: {
@@ -98,7 +122,7 @@ export async function POST(req: Request) {
         })
       )
     );
-    refreshed = refreshRows.length;
+    refreshed += chunk.length;
   }
 
   return NextResponse.json({
