@@ -1,272 +1,49 @@
 category,subcategory,item
-GROCERIES,Staples & Grains,Rice
-GROCERIES,Staples & Grains,Atta (wheat flour)
-GROCERIES,Staples & Grains,Maida
-GROCERIES,Staples & Grains,Sooji / Rava
-GROCERIES,Staples & Grains,Poha
-GROCERIES,Staples & Grains,Bread
-GROCERIES,Staples & Grains,Rusk
-GROCERIES,Pulses & Lentils,Toor dal
-GROCERIES,Pulses & Lentils,Moong dal
-GROCERIES,Pulses & Lentils,Chana dal
-GROCERIES,Pulses & Lentils,Urad dal
-GROCERIES,Pulses & Lentils,Rajma
-GROCERIES,Pulses & Lentils,Chole / Chana
-GROCERIES,Cooking Oils & Ghee,Sunflower oil
-GROCERIES,Cooking Oils & Ghee,Groundnut oil
-GROCERIES,Cooking Oils & Ghee,Mustard oil
-GROCERIES,Cooking Oils & Ghee,Coconut oil
-GROCERIES,Cooking Oils & Ghee,Desi ghee
-GROCERIES,Cooking Oils & Ghee,Vanaspati
-GROCERIES,Spices & Masalas,Turmeric
-GROCERIES,Spices & Masalas,Red chilli powder
-GROCERIES,Spices & Masalas,Coriander powder
-GROCERIES,Spices & Masalas,Cumin seeds
-GROCERIES,Spices & Masalas,Garam masala
-GROCERIES,Spices & Masalas,Curry powder
-GROCERIES,Spices & Masalas,Pepper
-GROCERIES,Spices & Masalas,Cardamom
-GROCERIES,"Sugar, Salt & Sweeteners",Sugar
-GROCERIES,"Sugar, Salt & Sweeteners",Salt
-GROCERIES,"Sugar, Salt & Sweeteners",Jaggery / Gud
-GROCERIES,"Sugar, Salt & Sweeteners",Honey
-GROCERIES,"Sugar, Salt & Sweeteners",Stevia / sugar-free tablets
-GROCERIES,"Sauces, Pickles & Spreads",Ketchup
-GROCERIES,"Sauces, Pickles & Spreads",Soy sauce
-GROCERIES,"Sauces, Pickles & Spreads",Vinegar
-GROCERIES,"Sauces, Pickles & Spreads",Chilli sauce
-GROCERIES,"Sauces, Pickles & Spreads",Mango pickle
-GROCERIES,"Sauces, Pickles & Spreads",Mixed pickle
-GROCERIES,"Sauces, Pickles & Spreads",Jam
-GROCERIES,"Sauces, Pickles & Spreads",Peanut butter
-GROCERIES,"Tea, Coffee & Beverages",Tea leaves / bags
-GROCERIES,"Tea, Coffee & Beverages",Instant coffee
-GROCERIES,"Tea, Coffee & Beverages",Filter coffee powder
-GROCERIES,"Tea, Coffee & Beverages","Health drinks (Horlicks, Bournvita)"
-GROCERIES,"Tea, Coffee & Beverages",Packaged juices
-GROCERIES,"Tea, Coffee & Beverages",Squash & syrups
-GROCERIES,"Tea, Coffee & Beverages",Coconut water
-GROCERIES,Packaged & Instant Foods,Instant noodles
-GROCERIES,Packaged & Instant Foods,Pasta / macaroni
-GROCERIES,Packaged & Instant Foods,Canned vegetables
-GROCERIES,Packaged & Instant Foods,Ready-to-eat meals
-GROCERIES,Packaged & Instant Foods,Soup mixes
-GROCERIES,Packaged & Instant Foods,Idli / dosa batter (packaged)
-GROCERIES,Breakfast & Cereals,Cornflakes
-GROCERIES,Breakfast & Cereals,Oats
-GROCERIES,Breakfast & Cereals,Muesli
-GROCERIES,Breakfast & Cereals,Upma mix
-GROCERIES,Breakfast & Cereals,Porridge mixes
-GROCERIES,Baking & Cooking Aids,Baking powder
-GROCERIES,Baking & Cooking Aids,Baking soda
-GROCERIES,Baking & Cooking Aids,Yeast
-GROCERIES,Baking & Cooking Aids,Corn flour
-GROCERIES,Baking & Cooking Aids,Food colour
-GROCERIES,Baking & Cooking Aids,Cocoa powder
-GROCERIES,Baking & Cooking Aids,Dry yeast
-SNACKS & CONFECTIONERY,Chips & Namkeen,Potato chips
-SNACKS & CONFECTIONERY,Chips & Namkeen,Bhujia
-SNACKS & CONFECTIONERY,Chips & Namkeen,Mixture
-SNACKS & CONFECTIONERY,Chips & Namkeen,Peanuts
-SNACKS & CONFECTIONERY,Chips & Namkeen,Popcorn
-SNACKS & CONFECTIONERY,Chips & Namkeen,Pretzels
-SNACKS & CONFECTIONERY,Biscuits & Cookies,Cream biscuits
-SNACKS & CONFECTIONERY,Biscuits & Cookies,Marie / digestive
-SNACKS & CONFECTIONERY,Biscuits & Cookies,Cookies
-SNACKS & CONFECTIONERY,Biscuits & Cookies,Crackers
-SNACKS & CONFECTIONERY,Biscuits & Cookies,Wafers
-SNACKS & CONFECTIONERY,Biscuits & Cookies,Rusks
-SNACKS & CONFECTIONERY,Chocolates & Candies,Milk chocolate bars
-SNACKS & CONFECTIONERY,Chocolates & Candies,Dark chocolate
-SNACKS & CONFECTIONERY,Chocolates & Candies,Toffees & candies
-SNACKS & CONFECTIONERY,Chocolates & Candies,Chewing gum
-SNACKS & CONFECTIONERY,Chocolates & Candies,Lollipops
-SNACKS & CONFECTIONERY,Dry Fruits & Nuts,Almonds
-SNACKS & CONFECTIONERY,Dry Fruits & Nuts,Cashews
-SNACKS & CONFECTIONERY,Dry Fruits & Nuts,Raisins
-SNACKS & CONFECTIONERY,Dry Fruits & Nuts,Walnuts
-SNACKS & CONFECTIONERY,Dry Fruits & Nuts,Pistachios
-SNACKS & CONFECTIONERY,Dry Fruits & Nuts,Dates
-SNACKS & CONFECTIONERY,Dry Fruits & Nuts,Mixed dry fruits
-SNACKS & CONFECTIONERY,Energy & Granola Bars,Protein bars
-SNACKS & CONFECTIONERY,Energy & Granola Bars,Granola bars
-SNACKS & CONFECTIONERY,Energy & Granola Bars,Cereal bars
-SNACKS & CONFECTIONERY,Energy & Granola Bars,Chikki / brittle
-SNACKS & CONFECTIONERY,Frozen Snacks,Frozen samosas
-SNACKS & CONFECTIONERY,Frozen Snacks,Frozen fries
-SNACKS & CONFECTIONERY,Frozen Snacks,Spring rolls
-SNACKS & CONFECTIONERY,Frozen Snacks,Nuggets
-SNACKS & CONFECTIONERY,Frozen Snacks,Frozen parathas
-BEVERAGES,Soft Drinks & Sodas,Cola drinks
-BEVERAGES,Soft Drinks & Sodas,Lemon soda
-BEVERAGES,Soft Drinks & Sodas,Orange soda
-BEVERAGES,Soft Drinks & Sodas,Energy drinks
-BEVERAGES,Soft Drinks & Sodas,Sparkling water
-BEVERAGES,Water,Packaged drinking water (500ml)
-BEVERAGES,Water,1L bottles
-BEVERAGES,Water,5L cans
-BEVERAGES,Water,20L jars
-BEVERAGES,Sports & Energy Drinks,Electrolyte drinks
-BEVERAGES,Sports & Energy Drinks,Sports drinks
-BEVERAGES,Sports & Energy Drinks,Protein shakes (RTD)
-BEVERAGES,Dairy Beverages,Flavoured milk
-BEVERAGES,Dairy Beverages,Lassi (packaged)
-BEVERAGES,Dairy Beverages,Buttermilk
-BEVERAGES,Dairy Beverages,Milkshakes (RTD)
-BEVERAGES,Health & Wellness Drinks,Green tea
-BEVERAGES,Health & Wellness Drinks,Herbal tea
-BEVERAGES,Health & Wellness Drinks,Kombucha
-BEVERAGES,Health & Wellness Drinks,Detox drinks
-PERSONAL CARE,Hair Care,Shampoo
-PERSONAL CARE,Hair Care,Conditioner
-PERSONAL CARE,Hair Care,Hair oil
-PERSONAL CARE,Hair Care,Hair serum
-PERSONAL CARE,Hair Care,Hair colour
-PERSONAL CARE,Hair Care,Anti-dandruff shampoo
-PERSONAL CARE,Hair Care,Hair mask
-PERSONAL CARE,Skin Care,Face wash
-PERSONAL CARE,Skin Care,Moisturiser / lotion
-PERSONAL CARE,Skin Care,Sunscreen
-PERSONAL CARE,Skin Care,Face scrub
-PERSONAL CARE,Skin Care,Toner
-PERSONAL CARE,Skin Care,Sheet masks
-PERSONAL CARE,Skin Care,Eye cream
-PERSONAL CARE,Body Care,Body wash
-PERSONAL CARE,Body Care,Soap bars
-PERSONAL CARE,Body Care,Body lotion
-PERSONAL CARE,Body Care,Talcum powder
-PERSONAL CARE,Body Care,Foot cream
-PERSONAL CARE,Oral Care,Toothpaste
-PERSONAL CARE,Oral Care,Toothbrush
-PERSONAL CARE,Oral Care,Mouthwash
-PERSONAL CARE,Oral Care,Tongue cleaner
-PERSONAL CARE,Oral Care,Dental floss
-PERSONAL CARE,Oral Care,Charcoal toothbrush
-PERSONAL CARE,Deodorants & Fragrances,Deodorant spray
-PERSONAL CARE,Deodorants & Fragrances,Roll-on
-PERSONAL CARE,Deodorants & Fragrances,Perfume / cologne
-PERSONAL CARE,Deodorants & Fragrances,Body mist
-PERSONAL CARE,Shaving & Grooming (men),Shaving cream / gel
-PERSONAL CARE,Shaving & Grooming (men),Razors & blades
-PERSONAL CARE,Shaving & Grooming (men),Aftershave
-PERSONAL CARE,Shaving & Grooming (men),Beard oil
-PERSONAL CARE,Shaving & Grooming (men),Trimmer accessories
-PERSONAL CARE,Feminine Hygiene,Sanitary pads
-PERSONAL CARE,Feminine Hygiene,Tampons / menstrual cups
-PERSONAL CARE,Feminine Hygiene,Panty liners
-PERSONAL CARE,Feminine Hygiene,Intimate wash
-TOILETRIES & HOME HYGIENE,Bathroom Cleaners,Toilet cleaner
-TOILETRIES & HOME HYGIENE,Bathroom Cleaners,Bathroom floor cleaner
-TOILETRIES & HOME HYGIENE,Bathroom Cleaners,Tile & grout cleaner
-TOILETRIES & HOME HYGIENE,Bathroom Cleaners,Drain unclogger
-TOILETRIES & HOME HYGIENE,Kitchen Cleaners,Dish wash bar
-TOILETRIES & HOME HYGIENE,Kitchen Cleaners,Dish wash liquid
-TOILETRIES & HOME HYGIENE,Kitchen Cleaners,Scrubbers & sponges
-TOILETRIES & HOME HYGIENE,Kitchen Cleaners,Kitchen surface spray
-TOILETRIES & HOME HYGIENE,Laundry,Detergent powder
-TOILETRIES & HOME HYGIENE,Laundry,Detergent liquid
-TOILETRIES & HOME HYGIENE,Laundry,Fabric softener
-TOILETRIES & HOME HYGIENE,Laundry,Stain remover
-TOILETRIES & HOME HYGIENE,Laundry,Washing bar
-TOILETRIES & HOME HYGIENE,Laundry,Bleach
-TOILETRIES & HOME HYGIENE,General Home Cleaners,Floor cleaner
-TOILETRIES & HOME HYGIENE,General Home Cleaners,Glass / mirror cleaner
-TOILETRIES & HOME HYGIENE,General Home Cleaners,Multi-surface spray
-TOILETRIES & HOME HYGIENE,General Home Cleaners,Disinfectant liquid
-TOILETRIES & HOME HYGIENE,Fresheners & Repellents,Room freshener spray
-TOILETRIES & HOME HYGIENE,Fresheners & Repellents,Car freshener
-TOILETRIES & HOME HYGIENE,Fresheners & Repellents,Mosquito repellent coils / mats / liquid
-TOILETRIES & HOME HYGIENE,Fresheners & Repellents,Cockroach & ant repellent
-TOILETRIES & HOME HYGIENE,Fresheners & Repellents,Naphthalene balls
-TOILETRIES & HOME HYGIENE,Tissue & Paper Products,Toilet paper
-TOILETRIES & HOME HYGIENE,Tissue & Paper Products,Facial tissues
-TOILETRIES & HOME HYGIENE,Tissue & Paper Products,Kitchen paper towels
-TOILETRIES & HOME HYGIENE,Tissue & Paper Products,Wet wipes
-TOILETRIES & HOME HYGIENE,Tissue & Paper Products,Garbage bags
-BABY & KIDS,Baby Skin Care,Baby oil
-BABY & KIDS,Baby Skin Care,Baby powder
-BABY & KIDS,Baby Skin Care,Baby lotion
-BABY & KIDS,Baby Skin Care,Diaper rash cream
-BABY & KIDS,Baby Skin Care,Baby soap & shampoo
-BABY & KIDS,Baby Hygiene,Diapers (S/M/L/XL)
-BABY & KIDS,Baby Hygiene,Baby wipes
-BABY & KIDS,Baby Hygiene,Changing mat
-BABY & KIDS,Baby Hygiene,Diaper disposal bags
-BABY & KIDS,Baby Food & Nutrition,Formula milk
-BABY & KIDS,Baby Food & Nutrition,Baby cereal (Cerelac etc.)
-BABY & KIDS,Baby Food & Nutrition,Baby snacks
-BABY & KIDS,Baby Food & Nutrition,Baby fruit purees (packaged)
-BABY & KIDS,Kids' Essentials,Kids toothpaste & brush
-BABY & KIDS,Kids' Essentials,Kids shampoo
-BABY & KIDS,Kids' Essentials,Kids vitamins
-BABY & KIDS,Kids' Essentials,School snacks
-HEALTH & WELLNESS,OTC Medicines,Paracetamol
-HEALTH & WELLNESS,OTC Medicines,Antacids
-HEALTH & WELLNESS,OTC Medicines,Cough syrup
-HEALTH & WELLNESS,OTC Medicines,Antihistamines
-HEALTH & WELLNESS,OTC Medicines,Pain relief ointment
-HEALTH & WELLNESS,OTC Medicines,ORS sachets
-HEALTH & WELLNESS,First Aid,Bandages & plasters
-HEALTH & WELLNESS,First Aid,Antiseptic liquid (Dettol / Savlon)
-HEALTH & WELLNESS,First Aid,Cotton rolls
-HEALTH & WELLNESS,First Aid,Crepe bandage
-HEALTH & WELLNESS,First Aid,Thermometer
-HEALTH & WELLNESS,First Aid,Gloves
-HEALTH & WELLNESS,Vitamins & Supplements,Vitamin C
-HEALTH & WELLNESS,Vitamins & Supplements,Multivitamins
-HEALTH & WELLNESS,Vitamins & Supplements,Vitamin D3
-HEALTH & WELLNESS,Vitamins & Supplements,Iron & calcium tablets
-HEALTH & WELLNESS,Vitamins & Supplements,Omega-3
-HEALTH & WELLNESS,Vitamins & Supplements,Protein powder
-HEALTH & WELLNESS,Diabetic & Speciality,Sugar-free products
-HEALTH & WELLNESS,Diabetic & Speciality,Diabetic snacks
-HEALTH & WELLNESS,Diabetic & Speciality,Low-sodium salt
-HEALTH & WELLNESS,Diabetic & Speciality,Gluten-free foods
-HOUSEHOLD ESSENTIALS,Kitchen Supplies & Disposables,Plastic bags / ziplock bags
-HOUSEHOLD ESSENTIALS,Kitchen Supplies & Disposables,Aluminium foil
-HOUSEHOLD ESSENTIALS,Kitchen Supplies & Disposables,Cling wrap
-HOUSEHOLD ESSENTIALS,Kitchen Supplies & Disposables,Paper plates & cups
-HOUSEHOLD ESSENTIALS,Kitchen Supplies & Disposables,Toothpicks
-HOUSEHOLD ESSENTIALS,Kitchen Supplies & Disposables,Matchbox & lighters
-HOUSEHOLD ESSENTIALS,Storage & Organisation,Rubber bands
-HOUSEHOLD ESSENTIALS,Storage & Organisation,Zip ties
-HOUSEHOLD ESSENTIALS,Storage & Organisation,Cling film
-HOUSEHOLD ESSENTIALS,Storage & Organisation,Labelling tape
-HOUSEHOLD ESSENTIALS,Storage & Organisation,Storage bags (vacuum / regular)
-HOUSEHOLD ESSENTIALS,"Batteries, Bulbs & Electricals",AA / AAA batteries
-HOUSEHOLD ESSENTIALS,"Batteries, Bulbs & Electricals",LED bulbs
-HOUSEHOLD ESSENTIALS,"Batteries, Bulbs & Electricals",Candles
-HOUSEHOLD ESSENTIALS,"Batteries, Bulbs & Electricals",Torch / flashlight
-HOUSEHOLD ESSENTIALS,"Batteries, Bulbs & Electricals",Extension cord
-HOUSEHOLD ESSENTIALS,Stationery & Office,Pens & pencils
-HOUSEHOLD ESSENTIALS,Stationery & Office,Notebooks
-HOUSEHOLD ESSENTIALS,Stationery & Office,Sticky notes
-HOUSEHOLD ESSENTIALS,Stationery & Office,Scissors
-HOUSEHOLD ESSENTIALS,Stationery & Office,Glue sticks
-HOUSEHOLD ESSENTIALS,Stationery & Office,Tape rolls
-PET CARE,Pet Food,Dog food (dry & wet)
-PET CARE,Pet Food,Cat food (dry & wet)
-PET CARE,Pet Food,Fish food
-PET CARE,Pet Food,Bird feed
-PET CARE,Pet Hygiene & Grooming,Pet shampoo
-PET CARE,Pet Hygiene & Grooming,Pet wipes
-PET CARE,Pet Hygiene & Grooming,Pee pads
-PET CARE,Pet Hygiene & Grooming,Litter sand (cat)
-PET CARE,Pet Hygiene & Grooming,Deodorising spray
-PET CARE,Pet Accessories,Collars & leashes
-PET CARE,Pet Accessories,Feeding bowls
-PET CARE,Pet Accessories,Toys
-PET CARE,Pet Accessories,Treats & chews
-SEASONAL & FESTIVE,Festive Sweets & Snacks,Mithai boxes
-SEASONAL & FESTIVE,Festive Sweets & Snacks,"Festival-specific snacks (ladoo, chakli etc.)"
-SEASONAL & FESTIVE,Festive Sweets & Snacks,Gift packs
-SEASONAL & FESTIVE,Pooja & Religious,Agarbatti / incense sticks
-SEASONAL & FESTIVE,Pooja & Religious,Diyas
-SEASONAL & FESTIVE,Pooja & Religious,Camphor
-SEASONAL & FESTIVE,Pooja & Religious,Pooja oil
-SEASONAL & FESTIVE,Pooja & Religious,Flowers (artificial)
-SEASONAL & FESTIVE,Pooja & Religious,Kumkum & turmeric packs
-SEASONAL & FESTIVE,Gifting & Seasonal,Gift hampers
-SEASONAL & FESTIVE,Gifting & Seasonal,Greeting cards
-SEASONAL & FESTIVE,Gifting & Seasonal,Seasonal decorations
-SEASONAL & FESTIVE,Gifting & Seasonal,Wrapping paper
+STAPLES & COOKING ESSENTIALS,"Atta, Rice & Grains",Basmati Rice
+STAPLES & COOKING ESSENTIALS,Dal & Pulses,Toor Dal
+STAPLES & COOKING ESSENTIALS,Cooking Oils & Ghee,Sunflower Oil
+STAPLES & COOKING ESSENTIALS,"Masala, Spices & Seasonings",Turmeric Powder
+STAPLES & COOKING ESSENTIALS,"Sugar, Salt & Sweeteners",Sugar
+STAPLES & COOKING ESSENTIALS,"Sauces, Pickles & Spreads",Tomato Ketchup
+STAPLES & COOKING ESSENTIALS,Baking & Cooking Aids,Baking Powder
+DAIRY & BAKERY,Milk & Dairy,Cow Milk
+DAIRY & BAKERY,Bread & Bakery,Whole Wheat Bread
+SNACKS & PACKAGED FOODS,Chips & Namkeen,Potato Chips
+SNACKS & PACKAGED FOODS,Biscuits & Cookies,Marie Biscuit
+SNACKS & PACKAGED FOODS,"Chocolates, Candies & Gums",Milk Chocolate
+SNACKS & PACKAGED FOODS,Indian Snacks & Sweets,Bhujia
+SNACKS & PACKAGED FOODS,Dry Fruits & Nuts,Almonds
+SNACKS & PACKAGED FOODS,"Noodles, Pasta & Instant Foods",Instant Noodles
+SNACKS & PACKAGED FOODS,Breakfast & Cereals,Corn Flakes
+SNACKS & PACKAGED FOODS,Frozen & Ready-to-Eat,Frozen French Fries
+SNACKS & PACKAGED FOODS,Ice Cream & Desserts,Vanilla Ice Cream
+BEVERAGES,"Tea, Coffee & Drink Mixes",Instant Coffee
+BEVERAGES,Juices & Cold Drinks,Orange Juice
+BEVERAGES,Soft Drinks & Sodas,Cola
+BEVERAGES,Water,Mineral Water
+BEVERAGES,Sports & Energy Drinks,Energy Drink
+BEVERAGES,Dairy & Health Drinks,Health Drink Mix
+BEAUTY & PERSONAL CARE,Bath & Body,Body Wash
+BEAUTY & PERSONAL CARE,Hair Care,Shampoo
+BEAUTY & PERSONAL CARE,Skin & Face Care,Face Wash
+BEAUTY & PERSONAL CARE,Oral Care,Toothpaste
+BEAUTY & PERSONAL CARE,Deodorants & Fragrances,Deodorant Spray
+BEAUTY & PERSONAL CARE,Men's Grooming,Shaving Cream
+BEAUTY & PERSONAL CARE,Makeup & Cosmetics,Lipstick
+BEAUTY & PERSONAL CARE,Feminine Hygiene,Sanitary Pads
+HEALTH & WELLNESS,Diet & Nutrition,Protein Powder
+HEALTH & WELLNESS,First Aid & Antiseptics,Antiseptic Liquid
+HEALTH & WELLNESS,Ayurvedic Medicine,Amla Churan
+BABY & KIDS,Baby Food & Nutrition,Baby Cereal
+BABY & KIDS,Baby Skin Care,Baby Lotion
+BABY & KIDS,Diapers & Wipes,Baby Wipes
+BABY & KIDS,Kids' Essentials,Kids Toothbrush
+HOUSEHOLD & CLEANING,Laundry Detergents,Liquid Detergent
+HOUSEHOLD & CLEANING,Cleaning Supplies,Dishwash Liquid
+HOUSEHOLD & CLEANING,Bathroom & Toilet Cleaners,Toilet Cleaner
+HOUSEHOLD & CLEANING,Tissue & Paper Products,Kitchen Tissue
+HOUSEHOLD & CLEANING,Fresheners & Repellents,Air Freshener
+HOUSEHOLD & CLEANING,Kitchen & Home Essentials,Aluminium Foil
+FESTIVE & SEASONAL,Festive Sweets & Snacks,Soan Papdi
+FESTIVE & SEASONAL,Pooja & Religious,Agarbatti
+FESTIVE & SEASONAL,Gifting & Seasonal,Gift Hamper
