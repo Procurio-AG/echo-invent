@@ -2,7 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "react-hot-toast";
-import { ScannerFrame } from "@/app/components/ScannerFrame";
+import {
+  HiddenScanInput,
+  type HiddenScanInputHandle,
+} from "@/app/components/HiddenScanInput";
 import { ProductForm } from "@/app/components/ProductForm";
 
 type SessionState =
@@ -21,9 +24,28 @@ type Pending = {
   transcript?: string;
 };
 
-type Recent = { ean: string; name: string; mrp: number | null };
+type Recent = {
+  ean: string;
+  name: string;
+  brand: string | null;
+  mrp: number | null;
+};
 
 const MIN_BLOB_BYTES = 1500;
+
+// Compose the stored item name from the separately-extracted brand and the
+// descriptive name (which already carries any spoken quantity/size, e.g.
+// "Khus Syrup 750ml"). Brand is prepended so the saved name reads
+// "Haldiram Khus Syrup 750ml" — unless the name already leads with the brand,
+// in which case we leave it as-is to avoid doubling it.
+function composeName(brand: string | null, name: string): string {
+  const n = name.trim();
+  const b = brand?.trim();
+  if (!b) return n;
+  if (!n) return b;
+  if (n.toLowerCase().startsWith(b.toLowerCase())) return n;
+  return `${b} ${n}`;
+}
 
 // --- audio helpers (client-side, no deps) ----------------------------------
 
@@ -100,6 +122,7 @@ export default function RapidCapturePage() {
   const micStreamRef = useRef<MediaStream | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
+  const scanRef = useRef<HiddenScanInputHandle>(null);
 
   const paused = looking || !!activeEan || !!pending || !!manualEan;
 
@@ -164,13 +187,16 @@ export default function RapidCapturePage() {
       mrp: number | null,
       extra?: { confidence?: number; transcript?: string }
     ) => {
+      // Brand is stored separately (original_data.brand) AND folded into the
+      // item name so the worklist shows e.g. "Haldiram Khus Syrup 750ml".
+      const fullName = composeName(brand, name);
       try {
         const res = await fetch("/api/product/create", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             ean,
-            name,
+            name: fullName,
             mrp,
             status: "captured",
             original_data: {
@@ -182,8 +208,8 @@ export default function RapidCapturePage() {
         });
         const data = await res.json();
         if (res.status === 201) {
-          setRecent((r) => [{ ean, name, mrp }, ...r].slice(0, 6));
-          toast.success(`Saved: ${name}${mrp != null ? ` · ₹${mrp}` : ""}`);
+          setRecent((r) => [{ ean, name: fullName, brand, mrp }, ...r].slice(0, 6));
+          toast.success(`Saved: ${fullName}${mrp != null ? ` · ₹${mrp}` : ""}`);
         } else if (res.status === 409 && data.code === "ALREADY_EXISTS") {
           toast(`${ean} already exists in this session.`);
         } else if (res.status === 409 && data.code === "NO_ACTIVE_SESSION") {
@@ -325,8 +351,9 @@ export default function RapidCapturePage() {
         </p>
         <h1 className="font-serif text-3xl tracking-tight">Scan &amp; speak</h1>
         <p className="text-xs text-muted">
-          Scan a barcode, hold the button and say the name and MRP. Pricing and
-          category are filled later in the worklist.
+          Scan with a connected USB or Bluetooth barcode scanner, then hold the
+          button and say the name and MRP. Pricing and category are filled later
+          in their worklists.
         </p>
       </header>
 
@@ -354,10 +381,10 @@ export default function RapidCapturePage() {
             </p>
           )}
 
-          <ScannerFrame
-            paused={paused}
+          <HiddenScanInput
+            ref={scanRef}
+            released={paused}
             onScan={handleScan}
-            onError={(m) => toast.error(`Camera: ${m}`)}
           />
 
           {looking && <p className="text-xs text-muted">Looking up…</p>}
@@ -505,11 +532,22 @@ export default function RapidCapturePage() {
               <p className="mb-2 text-xs uppercase tracking-wider text-muted">
                 Just captured
               </p>
-              <ul className="space-y-1 text-sm">
+              <div className="grid grid-cols-[1fr_8rem_4rem] gap-3 border-b border-border pb-1 text-[10px] uppercase tracking-wider text-muted">
+                <span>Item</span>
+                <span>Brand</span>
+                <span className="text-right">MRP</span>
+              </div>
+              <ul className="mt-1 space-y-1 text-sm">
                 {recent.map((r, i) => (
-                  <li key={`${r.ean}-${i}`} className="flex justify-between">
-                    <span className="truncate pr-2">{r.name}</span>
-                    <span className="font-mono text-muted">
+                  <li
+                    key={`${r.ean}-${i}`}
+                    className="grid grid-cols-[1fr_8rem_4rem] items-center gap-3"
+                  >
+                    <span className="truncate">{r.name}</span>
+                    <span className="truncate text-xs text-muted">
+                      {r.brand ?? "—"}
+                    </span>
+                    <span className="text-right font-mono text-muted">
                       {r.mrp != null ? `₹${r.mrp}` : "—"}
                     </span>
                   </li>
