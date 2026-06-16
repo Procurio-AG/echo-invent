@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { isKnownSubcategory } from "@/lib/categories";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,6 +12,7 @@ type Item = {
   purchase_price?: number | null;
   selling_price?: number | null;
   mrp?: number | null;
+  category?: string | null;
 };
 
 type Body = {
@@ -86,6 +88,7 @@ export async function POST(req: Request) {
     purchase_price: number | null | undefined;
     selling_price: number | null | undefined;
     mrp: number | null | undefined;
+    category: string | null | undefined;
   };
   const resolved: Resolved[] = [];
 
@@ -123,12 +126,33 @@ export async function POST(req: Request) {
       continue;
     }
 
+    // category: undefined => leave unchanged, null/"" => clear, otherwise it must
+    // be a known subcategory (mirrors the create/update routes' validation).
+    let category: string | null | undefined;
+    if (item.category === undefined) {
+      category = undefined;
+    } else if (item.category === null || item.category === "") {
+      category = null;
+    } else {
+      const trimmed = item.category.trim();
+      if (!isKnownSubcategory(trimmed)) {
+        invalid.push({ ean, reason: `unknown category: ${trimmed}` });
+        continue;
+      }
+      category = trimmed;
+    }
+
     // No actual field to write — skip rather than bump the version for nothing.
-    if (purchase_price === undefined && selling_price === undefined && mrp === undefined) {
+    if (
+      purchase_price === undefined &&
+      selling_price === undefined &&
+      mrp === undefined &&
+      category === undefined
+    ) {
       continue;
     }
 
-    resolved.push({ ean, version, purchase_price, selling_price, mrp });
+    resolved.push({ ean, version, purchase_price, selling_price, mrp, category });
   }
 
   // ── Process in chunks; one interactive transaction per chunk. ──────────────
@@ -164,6 +188,7 @@ export async function POST(req: Request) {
             ...(r.purchase_price !== undefined ? { purchase_price: r.purchase_price } : {}),
             ...(r.selling_price !== undefined ? { selling_price: r.selling_price } : {}),
             ...(r.mrp !== undefined ? { mrp: r.mrp } : {}),
+            ...(r.category !== undefined ? { category: r.category } : {}),
             status: "updated",
             version: { increment: 1 },
           },
