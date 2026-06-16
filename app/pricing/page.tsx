@@ -38,24 +38,38 @@ type PageState =
   | { kind: "error"; message: string }
   | { kind: "ready" };
 
-// Per-row local edit. Blank string = "no change" (never wipes an existing value).
-type Edit = { pp: string; sp: string; mrp: string; category: string };
-type Field = "pp" | "sp" | "mrp" | "category";
+// Per-row local edit. Inputs are pre-filled from the row's current values, so a
+// field is "changed" only when its trimmed value differs from the original.
+type Edit = { pp: string; sp: string; mrp: string };
+type Field = "pp" | "sp" | "mrp";
 
-const EMPTY_EDIT: Edit = { pp: "", sp: "", mrp: "", category: "" };
+const EMPTY_EDIT: Edit = { pp: "", sp: "", mrp: "" };
 
-function fmtPrice(n: number | null): string {
-  return n === null ? "—" : String(n);
+// Render a current numeric value as the string an input is seeded with.
+function originalStr(n: number | null): string {
+  return n === null ? "" : String(n);
 }
 
-// Mirror the server's toNullableNumber: blank => undefined (no change),
-// otherwise a finite >= 0 number, else invalid.
-function parseInput(s: string): { value?: number; blank: boolean; invalid: boolean } {
-  const t = s.trim();
-  if (t === "") return { blank: true, invalid: false };
-  const n = Number(t);
-  if (!Number.isFinite(n) || n < 0) return { blank: false, invalid: true };
-  return { value: n, blank: false, invalid: false };
+// Build the initial edits map for a freshly-loaded set of rows, pre-filling each
+// PP/SP/MRP field with the row's current value.
+function seedEdits(rows: WorklistRow[]): Record<string, Edit> {
+  const seeded: Record<string, Edit> = {};
+  for (const r of rows) {
+    seeded[r.id] = {
+      pp: originalStr(r.purchase_price),
+      sp: originalStr(r.selling_price),
+      mrp: originalStr(r.mrp),
+    };
+  }
+  return seeded;
+}
+
+// Validate a single (already-changed, non-blank) field value: mirror the
+// server's toNullableNumber — finite and >= 0.
+function parseInput(s: string): { value?: number; invalid: boolean } {
+  const n = Number(s.trim());
+  if (!Number.isFinite(n) || n < 0) return { invalid: true };
+  return { value: n, invalid: false };
 }
 
 export default function PricingPage() {
@@ -70,8 +84,9 @@ export default function PricingPage() {
   const [category, setCategory] = useState("");
   const [groups, setGroups] = useState<CategoryGroup[]>([]);
 
-  // Dirty edits keyed by product id. Each row also carries the version we read
-  // it at, so the batch save sends an optimistic version check per row.
+  // Per-row edits keyed by product id, pre-filled from each row's current
+  // values. Each row also carries the version we read it at, so the batch save
+  // sends an optimistic version check per row.
   const [edits, setEdits] = useState<Record<string, Edit>>({});
   const [saving, setSaving] = useState(false);
 
@@ -125,8 +140,9 @@ export default function PricingPage() {
         setRows(payload.rows);
         setTotal(payload.total);
         setSkip(payload.skip);
-        // A page change discards in-progress edits — they belonged to the old page.
-        setEdits({});
+        // A page change discards in-progress edits and re-seeds the inputs from
+        // the new page's current values.
+        setEdits(seedEdits(payload.rows));
         setState({ kind: "ready" });
       } catch {
         setState({ kind: "error", message: "Network error." });
@@ -175,19 +191,7 @@ export default function PricingPage() {
   const setEdit = useCallback((id: string, field: Field, value: string) => {
     setEdits((prev) => {
       const cur = prev[id] ?? EMPTY_EDIT;
-      const next = { ...cur, [field]: value };
-      // Drop the entry entirely once all inputs are blank again so the row is
-      // no longer counted as dirty.
-      if (
-        next.pp.trim() === "" &&
-        next.sp.trim() === "" &&
-        next.mrp.trim() === "" &&
-        next.category.trim() === ""
-      ) {
-        const { [id]: _drop, ...rest } = prev;
-        return rest;
-      }
-      return { ...prev, [id]: next };
+      return { ...prev, [id]: { ...cur, [field]: value } };
     });
   }, []);
 
@@ -226,22 +230,39 @@ export default function PricingPage() {
     [orderedInputKeys, focusKey]
   );
 
-  const dirtyCount = Object.keys(edits).length;
-
-  // Pre-flight: any locally-invalid inputs block the save.
-  const hasInvalidInput = useMemo(() => {
-    for (const id of Object.keys(edits)) {
-      const e = edits[id];
+  // A row is dirty when any field's trimmed value differs from the row's
+  // original value (the value the input was seeded with).
+  const dirtyCount = useMemo(() => {
+    let count = 0;
+    for (const r of rows) {
+      const e = edits[r.id] ?? EMPTY_EDIT;
       if (
-        parseInput(e.pp).invalid ||
-        parseInput(e.sp).invalid ||
-        parseInput(e.mrp).invalid
+        e.pp.trim() !== originalStr(r.purchase_price) ||
+        e.sp.trim() !== originalStr(r.selling_price) ||
+        e.mrp.trim() !== originalStr(r.mrp)
       ) {
-        return true;
+        count += 1;
+      }
+    }
+    return count;
+  }, [rows, edits]);
+
+  // Pre-flight: only changed, non-blank fields are validated — a field left at
+  // its original value or cleared to blank never blocks the save.
+  const hasInvalidInput = useMemo(() => {
+    for (const r of rows) {
+      const e = edits[r.id] ?? EMPTY_EDIT;
+      const checks: [string, string][] = [
+        [e.pp.trim(), originalStr(r.purchase_price)],
+        [e.sp.trim(), originalStr(r.selling_price)],
+        [e.mrp.trim(), originalStr(r.mrp)],
+      ];
+      for (const [t, orig] of checks) {
+        if (t !== orig && t !== "" && parseInput(t).invalid) return true;
       }
     }
     return false;
-  }, [edits]);
+  }, [rows, edits]);
 
   const handleSaveAll = useCallback(async () => {
     if (saving || dirtyCount === 0) return;
@@ -251,7 +272,9 @@ export default function PricingPage() {
       return;
     }
 
-    // Build the batch payload from dirty rows. Blank field => omit (no change).
+    // Build the batch payload from changed fields only. A field equal to its
+    // original is omitted (no change); a field cleared to blank is also omitted
+    // (we never clear a value via the grid).
     const items: {
       id: string;
       ean: string;
@@ -259,25 +282,31 @@ export default function PricingPage() {
       purchase_price?: number;
       selling_price?: number;
       mrp?: number;
-      category?: string;
     }[] = [];
 
     for (const r of rows) {
-      const e = edits[r.id];
-      if (!e) continue;
-      const pp = parseInput(e.pp);
-      const sp = parseInput(e.sp);
-      const mrp = parseInput(e.mrp);
+      const e = edits[r.id] ?? EMPTY_EDIT;
       const item: (typeof items)[number] = {
         id: r.id,
         ean: r.ean,
         version: r.version,
       };
-      if (!pp.blank) item.purchase_price = pp.value;
-      if (!sp.blank) item.selling_price = sp.value;
-      if (!mrp.blank) item.mrp = mrp.value;
-      if (e.category.trim()) item.category = e.category;
-      items.push(item);
+      let changed = false;
+      const fields: [Field, "purchase_price" | "selling_price" | "mrp", number | null][] = [
+        ["pp", "purchase_price", r.purchase_price],
+        ["sp", "selling_price", r.selling_price],
+        ["mrp", "mrp", r.mrp],
+      ];
+      for (const [field, key, original] of fields) {
+        const t = e[field].trim();
+        if (t === originalStr(original)) continue; // unchanged
+        if (t === "") continue; // never clear a value via the grid
+        const parsed = parseInput(t);
+        if (parsed.invalid) continue; // guarded by hasInvalidInput above
+        item[key] = parsed.value;
+        changed = true;
+      }
+      if (changed) items.push(item);
     }
 
     if (items.length === 0) return;
@@ -325,10 +354,11 @@ export default function PricingPage() {
         setTotal(payload.total);
         setSkip(payload.skip);
 
-        // Re-apply the conflict rows' typed edits on top of the refetched rows
-        // (matched by ean, since ids are stable per session) so the manager can
-        // retry against the now-current version without re-typing.
-        const nextEdits: Record<string, Edit> = {};
+        // Re-seed every input from the fresh current values, then re-apply the
+        // conflict rows' typed edits on top (matched by ean, since ids are
+        // stable per session) so the manager can retry against the now-current
+        // version without re-typing.
+        const nextEdits = seedEdits(payload.rows);
         for (const r of payload.rows) {
           const carried = conflictEditsByEan.get(r.ean);
           if (carried) nextEdits[r.id] = carried;
@@ -370,8 +400,8 @@ export default function PricingPage() {
         <p className="max-w-xl text-sm text-muted">
           Audited items still missing a purchase, selling price or MRP — including
           rows where the source cell held a note like “check” instead of a number.
-          Fill the prices across as many rows as you like, then save them all at
-          once. Tab or Enter jumps between price fields.
+          Known prices are pre-filled and editable; fill in the missing ones, then
+          save them all at once. Tab or Enter jumps between price fields.
         </p>
       </header>
 
@@ -442,33 +472,35 @@ export default function PricingPage() {
               </div>
 
               <div className="overflow-x-auto rounded-lg border border-border">
-                <table className="w-full min-w-[1180px] border-collapse text-sm">
+                <table className="w-full min-w-[720px] border-collapse text-sm">
                   <thead>
                     <tr className="border-b border-border bg-surface text-left text-[10px] uppercase tracking-wider text-muted">
                       <th className="px-4 py-3 font-medium">Product</th>
-                      <th className="px-3 py-3 text-right font-medium">Current PP</th>
-                      <th className="px-3 py-3 text-right font-medium">Current SP</th>
                       <th className="px-3 py-3 font-medium">Purchase price</th>
                       <th className="px-3 py-3 font-medium">Selling price</th>
                       <th className="px-3 py-3 font-medium">MRP</th>
-                      <th className="px-3 py-3 font-medium">Category</th>
                     </tr>
                   </thead>
                   <tbody>
                     {rows.map((p) => {
                       const e = edits[p.id] ?? EMPTY_EDIT;
-                      const ppParsed = parseInput(e.pp);
-                      const spParsed = parseInput(e.sp);
-                      const mrpParsed = parseInput(e.mrp);
                       const ppKey = `${p.id}:pp`;
                       const spKey = `${p.id}:sp`;
                       const mrpKey = `${p.id}:mrp`;
                       const flags = p.flags ?? {};
                       const inputBase =
                         "w-28 rounded-md border bg-bg px-2 py-2 font-mono text-sm text-text outline-none focus:border-text/60 disabled:opacity-50";
-                      const ppBorder = ppParsed.invalid ? "border-red-500" : "border-border";
-                      const spBorder = spParsed.invalid ? "border-red-500" : "border-border";
-                      const mrpBorder = mrpParsed.invalid ? "border-red-500" : "border-border";
+                      // Border cue: invalid (changed, non-blank, bad number) -> red;
+                      // still-empty -> yellow (needs a value); otherwise default.
+                      const borderFor = (raw: string): string => {
+                        const t = raw.trim();
+                        if (t !== "" && parseInput(t).invalid) return "border-red-500";
+                        if (t === "") return "border-yellow-500/40";
+                        return "border-border";
+                      };
+                      const ppBorder = borderFor(e.pp);
+                      const spBorder = borderFor(e.sp);
+                      const mrpBorder = borderFor(e.mrp);
                       return (
                         <tr
                           key={p.id}
@@ -480,26 +512,6 @@ export default function PricingPage() {
                               <span className="font-mono">{p.ean}</span>
                               {p.category ? ` · ${p.category}` : ""}
                             </p>
-                          </td>
-                          <td className="px-3 py-3 text-right">
-                            <span
-                              className={
-                                "font-mono text-sm " +
-                                (p.purchase_price === null ? "text-yellow-300" : "text-muted")
-                              }
-                            >
-                              {fmtPrice(p.purchase_price)}
-                            </span>
-                          </td>
-                          <td className="px-3 py-3 text-right">
-                            <span
-                              className={
-                                "font-mono text-sm " +
-                                (p.selling_price === null ? "text-yellow-300" : "text-muted")
-                              }
-                            >
-                              {fmtPrice(p.selling_price)}
-                            </span>
                           </td>
                           <td className="px-3 py-3">
                             <input
@@ -514,7 +526,7 @@ export default function PricingPage() {
                               onKeyDown={(ev) => handleKeyDown(ev, ppKey)}
                               disabled={saving}
                               className={`${inputBase} ${ppBorder}`}
-                              placeholder={p.purchase_price === null ? "price" : "no change"}
+                              placeholder="price"
                               aria-label={`Purchase price for ${p.name}`}
                             />
                             <FlagBadge text={flags.purchase_price} label="Source purchase price" />
@@ -532,7 +544,7 @@ export default function PricingPage() {
                               onKeyDown={(ev) => handleKeyDown(ev, spKey)}
                               disabled={saving}
                               className={`${inputBase} ${spBorder}`}
-                              placeholder={p.selling_price === null ? "price" : "no change"}
+                              placeholder="price"
                               aria-label={`Selling price for ${p.name}`}
                             />
                             <FlagBadge text={flags.selling_price} label="Source selling price" />
@@ -550,28 +562,10 @@ export default function PricingPage() {
                               onKeyDown={(ev) => handleKeyDown(ev, mrpKey)}
                               disabled={saving}
                               className={`${inputBase} ${mrpBorder}`}
-                              placeholder={p.mrp === null ? "MRP" : "no change"}
+                              placeholder="MRP"
                               aria-label={`MRP for ${p.name}`}
                             />
                             <FlagBadge text={flags.mrp} label="Source MRP" />
-                          </td>
-                          <td className="px-3 py-3">
-                            <select
-                              value={e.category}
-                              onChange={(ev) => setEdit(p.id, "category", ev.target.value)}
-                              disabled={saving}
-                              className="w-48 rounded-md border border-border bg-bg px-2 py-2 text-sm text-text outline-none focus:border-text/60 disabled:opacity-50"
-                              aria-label={`Category for ${p.name}`}
-                            >
-                              <option value="">
-                                {p.category ? `Keep: ${p.category}` : "— set category —"}
-                              </option>
-                              {allCategories.map((c) => (
-                                <option key={c} value={c}>
-                                  {c}
-                                </option>
-                              ))}
-                            </select>
                           </td>
                         </tr>
                       );
