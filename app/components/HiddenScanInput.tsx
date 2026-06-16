@@ -94,12 +94,12 @@ export const HiddenScanInput = forwardRef<HiddenScanInputHandle, Props>(
           ref={inputRef}
           type="text"
           autoFocus
-          aria-hidden
+          placeholder="Scan or type a barcode, then Enter"
           onKeyDown={handleKeyDown}
           onChange={handleChange}
           onFocus={handleFocus}
           onBlur={handleBlur}
-          className="sr-only"
+          className="mt-3 w-full rounded-md border border-border bg-bg px-3 py-3 font-mono text-lg tracking-wider text-text placeholder:text-muted/50 focus:border-text/60 focus:outline-none"
         />
       </div>
     );
