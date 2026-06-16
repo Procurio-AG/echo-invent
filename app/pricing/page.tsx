@@ -39,10 +39,10 @@ type PageState =
   | { kind: "ready" };
 
 // Per-row local edit. Blank string = "no change" (never wipes an existing value).
-type Edit = { pp: string; sp: string; mrp: string };
-type Field = "pp" | "sp" | "mrp";
+type Edit = { pp: string; sp: string; mrp: string; category: string };
+type Field = "pp" | "sp" | "mrp" | "category";
 
-const EMPTY_EDIT: Edit = { pp: "", sp: "", mrp: "" };
+const EMPTY_EDIT: Edit = { pp: "", sp: "", mrp: "", category: "" };
 
 function fmtPrice(n: number | null): string {
   return n === null ? "—" : String(n);
@@ -181,7 +181,8 @@ export default function PricingPage() {
       if (
         next.pp.trim() === "" &&
         next.sp.trim() === "" &&
-        next.mrp.trim() === ""
+        next.mrp.trim() === "" &&
+        next.category.trim() === ""
       ) {
         const { [id]: _drop, ...rest } = prev;
         return rest;
@@ -258,6 +259,7 @@ export default function PricingPage() {
       purchase_price?: number;
       selling_price?: number;
       mrp?: number;
+      category?: string;
     }[] = [];
 
     for (const r of rows) {
@@ -274,6 +276,7 @@ export default function PricingPage() {
       if (!pp.blank) item.purchase_price = pp.value;
       if (!sp.blank) item.selling_price = sp.value;
       if (!mrp.blank) item.mrp = mrp.value;
+      if (e.category.trim()) item.category = e.category;
       items.push(item);
     }
 
@@ -439,7 +442,7 @@ export default function PricingPage() {
               </div>
 
               <div className="overflow-x-auto rounded-lg border border-border">
-                <table className="w-full min-w-[980px] border-collapse text-sm">
+                <table className="w-full min-w-[1180px] border-collapse text-sm">
                   <thead>
                     <tr className="border-b border-border bg-surface text-left text-[10px] uppercase tracking-wider text-muted">
                       <th className="px-4 py-3 font-medium">Product</th>
@@ -448,6 +451,7 @@ export default function PricingPage() {
                       <th className="px-3 py-3 font-medium">Purchase price</th>
                       <th className="px-3 py-3 font-medium">Selling price</th>
                       <th className="px-3 py-3 font-medium">MRP</th>
+                      <th className="px-3 py-3 font-medium">Category</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -550,6 +554,24 @@ export default function PricingPage() {
                               aria-label={`MRP for ${p.name}`}
                             />
                             <FlagBadge text={flags.mrp} label="Source MRP" />
+                          </td>
+                          <td className="px-3 py-3">
+                            <select
+                              value={e.category}
+                              onChange={(ev) => setEdit(p.id, "category", ev.target.value)}
+                              disabled={saving}
+                              className="w-48 rounded-md border border-border bg-bg px-2 py-2 text-sm text-text outline-none focus:border-text/60 disabled:opacity-50"
+                              aria-label={`Category for ${p.name}`}
+                            >
+                              <option value="">
+                                {p.category ? `Keep: ${p.category}` : "— set category —"}
+                              </option>
+                              {allCategories.map((c) => (
+                                <option key={c} value={c}>
+                                  {c}
+                                </option>
+                              ))}
+                            </select>
                           </td>
                         </tr>
                       );
