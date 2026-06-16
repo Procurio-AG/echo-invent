@@ -54,16 +54,19 @@ export async function GET() {
 
   let pending = 0;
   let updated = 0;
+  let captured = 0;
   for (const row of grouped) {
     if (row.status === "updated") updated = row._count._all;
     else if (row.status === "pending") pending = row._count._all;
+    else if (row.status === "captured") captured = row._count._all;
   }
 
   return NextResponse.json({
     session,
     stats: {
-      total: pending + updated,
+      total: pending + captured + updated,
       pending,
+      captured,
       updated,
       needs_pricing,
     },
