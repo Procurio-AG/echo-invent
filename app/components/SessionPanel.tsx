@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "react-hot-toast";
 
@@ -10,7 +11,12 @@ type ActiveSessionResponse = {
     started_at: string;
     closed_at: string | null;
   } | null;
-  stats: { total: number; pending: number; updated: number } | null;
+  stats: {
+    total: number;
+    pending: number;
+    updated: number;
+    needs_pricing: number;
+  } | null;
 };
 
 export function SessionPanel({ refreshKey }: { refreshKey: number }) {
@@ -126,6 +132,18 @@ export function SessionPanel({ refreshKey }: { refreshKey: number }) {
             <Stat label="Pending" value={data.stats?.pending ?? 0} />
             <Stat label="Updated" value={data.stats?.updated ?? 0} />
           </dl>
+
+          {(data.stats?.needs_pricing ?? 0) > 0 && (
+            <Link
+              href="/pricing"
+              className="mt-2 flex items-center justify-between rounded-md border border-yellow-700/60 bg-yellow-950/30 px-3 py-2 text-xs text-yellow-200 transition hover:bg-yellow-950/50"
+            >
+              <span>{data.stats?.needs_pricing} items need a price</span>
+              <span aria-hidden className="text-yellow-400">
+                →
+              </span>
+            </Link>
+          )}
 
           <button
             ref={triggerRef}
