@@ -13,6 +13,8 @@ type Body = {
   purchase_price?: number | null;
   selling_price?: number | null;
   mrp?: number | null;
+  status?: string;
+  original_data?: Record<string, unknown>;
 };
 
 function toNullableNumber(v: unknown): number | null {
@@ -50,6 +52,9 @@ export async function POST(req: Request) {
   const purchase_price = toNullableNumber(body.purchase_price);
   const selling_price = toNullableNumber(body.selling_price);
   const mrp = toNullableNumber(body.mrp);
+  // Allowlist: only the voice rapid-capture flow may set 'captured'; anything
+  // else (including absent) keeps the existing 'updated' behavior.
+  const status = body.status === "captured" ? "captured" : "updated";
 
   const session = await prisma.session.findFirst({
     where: { closed_at: null },
@@ -73,8 +78,8 @@ export async function POST(req: Request) {
           purchase_price,
           selling_price,
           mrp,
-          original_data: {} as Prisma.InputJsonValue,
-          status: "updated",
+          original_data: (body.original_data ?? {}) as Prisma.InputJsonValue,
+          status,
         },
       });
 
