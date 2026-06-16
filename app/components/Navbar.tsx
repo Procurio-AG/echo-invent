@@ -7,6 +7,7 @@ const links = [
   { href: "/", label: "Dashboard" },
   { href: "/pricing", label: "Pricing" },
   { href: "/mobile-scanner", label: "Mobile Scanner" },
+  { href: "/rapid-capture", label: "Rapid Capture" },
   { href: "/desktop-scanner", label: "Desktop Scanner" },
 ];
 
