@@ -38,11 +38,13 @@ const RESPONSE_SCHEMA = {
 const PROMPT = `You transcribe a short voice clip from a retail inventory auditor who has just scanned a product and is speaking its NAME and its MRP (maximum retail price). The auditor may speak Hindi, English, or a Hinglish mix.
 
 Return ONLY these structured fields:
-- name: the product name in ROMAN / LATIN script. Transliterate Hindi to Latin; NEVER use Devanagari and NEVER translate (keep words like "ghee", "atta", "doodh", "namkeen" as spoken). Keep brand words verbatim. Use "" (empty string) if no clear product name is heard.
-- brand: just the brand / manufacturer token if clearly present (e.g. Amul, Parle, Patanjali, Britannia, Nestle, Tata, Mother Dairy, Haldiram). null if no clear brand or it is ambiguous. Do NOT guess a brand from the product type.
+- name: the product's DESCRIPTIVE name in ROMAN / LATIN script, INCLUDING any spoken quantity / size / volume / weight (e.g. "Khus Syrup 750ml", "Atta 5kg", "Lays 52g"). The quantity / size STAYS attached to the name. EXCLUDE the brand from the name. Transliterate Hindi to Latin; NEVER use Devanagari and NEVER translate (keep words like "ghee", "atta", "doodh", "namkeen" as spoken). Use "" (empty string) if no clear product name is heard.
+- brand: ONLY the brand / manufacturer name if clearly present (e.g. Amul, Parle, Patanjali, Britannia, Nestle, Tata, Mother Dairy, Haldiram). null if no clear brand or it is ambiguous. Do NOT guess a brand from the product type. Do NOT include the brand in name.
 - mrp: the price as ONE plain number in rupees. Convert spoken number words in any language, including Hindi: "do sau pachaas"=250, "saadhe teen sau"=350, "sava do sau"=225, "paune teen sau"=275, "dhai sau"=250, "pachattar"=75, "ek sau bees"=120. Strip filler such as "rupaye", "rupees", "rs", "ka", "MRP", "price". null if no price is spoken.
 - confidence: 0..1, how confident you are that name + mrp are correct.
-- needs_review: true if the audio is silence / noise / non-product, or you are unsure. In that case set name="" and needs_review=true rather than fabricating a name.`;
+- needs_review: true if the audio is silence / noise / non-product, or you are unsure. In that case set name="" and needs_review=true rather than fabricating a name.
+
+Example: spoken "Haldiram Khus Syrup saat sau pachaas ml, em-AR-pee ek sau pachaas" -> { "name": "Khus Syrup 750ml", "brand": "Haldiram", "mrp": 150 }. Note the brand ("Haldiram") is split out into brand, while the size ("750ml") stays inside name.`;
 
 export async function transcribeAudio(
   audioBase64: string,
