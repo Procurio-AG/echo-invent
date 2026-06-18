@@ -276,3 +276,102 @@ export async function groundedNamesBatch(
   const data = await callGemini(model, body);
   return parseNameItems(data);
 }
+
+export type BatchClip = { ean: string; audioBase64: string; mimeType: string };
+export type BatchTranscription = {
+  ean: string;
+  name: string;
+  brand: string | null;
+  mrp: number | null;
+  confidence: number;
+  needs_review: boolean;
+};
+
+const BATCH_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    items: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: {
+          ean: { type: "STRING" },
+          name: { type: "STRING" },
+          brand: { type: "STRING", nullable: true },
+          mrp: { type: "NUMBER", nullable: true },
+          confidence: { type: "NUMBER" },
+          needs_review: { type: "BOOLEAN" },
+        },
+        required: ["ean", "name", "confidence", "needs_review"],
+      },
+    },
+  },
+  required: ["items"],
+};
+
+const BATCH_PROMPT = `${PROMPT}
+
+You are given SEVERAL clips in one request. Before each clip is a line:
+"=== ITEM <n> | EAN <digits> ===". Transcribe EACH clip with the same rules
+above and return one array element PER clip, in the SAME ORDER. For each element
+you MUST echo back that clip's EAN EXACTLY as given in its delimiter line (copy
+the digits; never invent or alter them). Do not merge, drop, or reorder clips.`;
+
+function parseBatchItems(data: unknown): BatchTranscription[] {
+  const d = data as {
+    candidates?: { content?: { parts?: { text?: string }[] } }[];
+  };
+  const raw =
+    d?.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("") ?? "";
+  const json = extractJson(raw);
+  if (!json) return [];
+  let parsed: { items?: unknown };
+  try {
+    parsed = JSON.parse(json) as { items?: unknown };
+  } catch {
+    return [];
+  }
+  const arr = Array.isArray(parsed.items) ? parsed.items : [];
+  const out: BatchTranscription[] = [];
+  for (const entry of arr) {
+    const it = entry as Record<string, unknown>;
+    const ean = typeof it.ean === "string" ? it.ean.trim() : "";
+    const name = typeof it.name === "string" ? it.name.trim() : "";
+    const brand =
+      typeof it.brand === "string" && it.brand.trim() ? it.brand.trim() : null;
+    let mrp: number | null = null;
+    const m = typeof it.mrp === "number" ? it.mrp : Number(it.mrp);
+    if (Number.isFinite(m) && m > 0) mrp = m;
+    const c = typeof it.confidence === "number" ? it.confidence : 0;
+    const confidence = Number.isFinite(c) ? Math.max(0, Math.min(1, c)) : 0;
+    const needs_review = it.needs_review === true || name === "";
+    out.push({ ean, name, brand, mrp, confidence, needs_review });
+  }
+  return out;
+}
+
+// Stage 1 — one multimodal request carrying every queued clip, delimiter-
+// interleaved, with a required per-item EAN echo for server-side alignment.
+export async function transcribeBatch(
+  items: BatchClip[],
+  model: string = MODEL_HEAR
+): Promise<BatchTranscription[]> {
+  if (items.length === 0) return [];
+  const parts: Array<
+    { text: string } | { inlineData: { mimeType: string; data: string } }
+  > = [{ text: BATCH_PROMPT }];
+  items.forEach((it, i) => {
+    parts.push({ text: `=== ITEM ${i + 1} | EAN ${it.ean} ===` });
+    parts.push({ inlineData: { mimeType: it.mimeType, data: it.audioBase64 } });
+  });
+  const body = JSON.stringify({
+    contents: [{ parts }],
+    generationConfig: {
+      responseMimeType: "application/json",
+      responseSchema: BATCH_SCHEMA,
+      temperature: 0,
+    },
+  });
+  const data = await callGemini(model, body);
+  return parseBatchItems(data);
+}

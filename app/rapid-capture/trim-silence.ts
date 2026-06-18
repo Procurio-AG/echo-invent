@@ -95,6 +95,30 @@ export function trimSilence(buffer: AudioBuffer): AudioBuffer {
   return out;
 }
 
+// Total seconds of voiced audio (above the adaptive threshold). Used by the
+// record-time gate to reject near-silent clips before they are ever queued.
+export function voicedSeconds(buffer: AudioBuffer): number {
+  const sampleRate = buffer.sampleRate;
+  const data = buffer.getChannelData(0);
+  const total = data.length;
+  const frameLen = Math.max(1, Math.round((FRAME_MS / 1000) * sampleRate));
+  const frameCount = Math.ceil(total / frameLen);
+  if (frameCount === 0) return 0;
+
+  const energies = new Float32Array(frameCount);
+  for (let f = 0; f < frameCount; f++) {
+    const s = f * frameLen;
+    energies[f] = rms(data, s, Math.min(total, s + frameLen));
+  }
+  const sorted = Float32Array.from(energies).sort();
+  const noiseFloor = sorted[Math.floor(sorted.length * 0.1)] ?? 0;
+  const threshold = Math.max(noiseFloor * NOISE_MULT, DBFS_FLOOR_LINEAR);
+
+  let voicedFrames = 0;
+  for (let f = 0; f < frameCount; f++) if (energies[f] >= threshold) voicedFrames++;
+  return (voicedFrames * frameLen) / sampleRate;
+}
+
 export const TRIM_CONSTANTS = {
   FRAME_MS,
   MAX_GAP_S,
