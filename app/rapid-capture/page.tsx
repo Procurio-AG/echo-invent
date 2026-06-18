@@ -7,6 +7,7 @@ import {
   type HiddenScanInputHandle,
 } from "@/app/components/HiddenScanInput";
 import { ProductForm } from "@/app/components/ProductForm";
+import { trimSilence } from "@/app/rapid-capture/trim-silence";
 
 type SessionState =
   | { kind: "loading" }
@@ -99,7 +100,14 @@ async function toWavBase64(blob: Blob): Promise<{ base64: string; mimeType: stri
   const ctx = new AC();
   try {
     const buf = await ctx.decodeAudioData(await blob.arrayBuffer());
-    const wav = encodeWav(buf);
+    const trimmed = trimSilence(buf);
+    if (process.env.NODE_ENV !== "production") {
+      // eslint-disable-next-line no-console
+      console.debug(
+        `trimSilence: ${buf.duration.toFixed(2)}s -> ${trimmed.duration.toFixed(2)}s`
+      );
+    }
+    const wav = encodeWav(trimmed);
     const base64 = await blobToBase64(new Blob([wav], { type: "audio/wav" }));
     return { base64, mimeType: "audio/wav" };
   } finally {
