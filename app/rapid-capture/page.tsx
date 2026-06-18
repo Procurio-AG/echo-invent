@@ -7,7 +7,14 @@ import {
   type HiddenScanInputHandle,
 } from "@/app/components/HiddenScanInput";
 import { ProductForm } from "@/app/components/ProductForm";
-import { trimSilence } from "@/app/rapid-capture/trim-silence";
+import { trimSilence, voicedSeconds, TRIM_CONSTANTS } from "@/app/rapid-capture/trim-silence";
+import {
+  enqueueClip,
+  listClips,
+  removeClips,
+  countClips,
+  QUEUE_MAX,
+} from "@/app/rapid-capture/queue";
 
 type SessionState =
   | { kind: "loading" }
@@ -30,6 +37,16 @@ type Recent = {
   name: string;
   brand: string | null;
   mrp: number | null;
+};
+
+type ReviewRow = {
+  ean: string;
+  name: string;
+  brand: string | null;
+  mrp: string;
+  confidence: number | null;
+  source: string;
+  flags: string[];
 };
 
 const MIN_BLOB_BYTES = 1500;
@@ -90,6 +107,20 @@ function encodeWav(buffer: AudioBuffer): ArrayBuffer {
   return out;
 }
 
+// Decode a recorded blob into an AudioBuffer (used by the record-time gate).
+async function decodeClip(blob: Blob): Promise<AudioBuffer> {
+  const AC =
+    window.AudioContext ||
+    (window as unknown as { webkitAudioContext?: typeof AudioContext })
+      .webkitAudioContext;
+  const ctx = new AC();
+  try {
+    return await ctx.decodeAudioData(await blob.arrayBuffer());
+  } finally {
+    void ctx.close();
+  }
+}
+
 // Always decode whatever MediaRecorder produced (webm/opus on Android,
 // mp4/aac on iOS) into a WAV — a format Gemini reliably accepts.
 async function toWavBase64(blob: Blob): Promise<{ base64: string; mimeType: string }> {
@@ -126,13 +157,17 @@ export default function RapidCapturePage() {
   const [pending, setPending] = useState<Pending | null>(null);
   const [manualEan, setManualEan] = useState<string | null>(null);
   const [recent, setRecent] = useState<Recent[]>([]);
+  const [queueCount, setQueueCount] = useState(0);
+  const [transcribing, setTranscribing] = useState(false);
+  const [review, setReview] = useState<ReviewRow[] | null>(null);
+  const [savingAll, setSavingAll] = useState(false);
 
   const micStreamRef = useRef<MediaStream | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
   const scanRef = useRef<HiddenScanInputHandle>(null);
 
-  const paused = looking || !!activeEan || !!pending || !!manualEan;
+  const paused = looking || !!activeEan || !!pending || !!manualEan || !!review;
 
   const refetchSession = useCallback(async () => {
     try {
@@ -147,6 +182,14 @@ export default function RapidCapturePage() {
   useEffect(() => {
     refetchSession();
   }, [refetchSession]);
+
+  // Restore the queued-clip count so the badge reflects a queue that survived reload.
+  useEffect(() => {
+    if (session.kind !== "active") return;
+    countClips()
+      .then(setQueueCount)
+      .catch(() => setQueueCount(0));
+  }, [session.kind]);
 
   // Acquire the mic once for the whole session and reuse it for every clip.
   useEffect(() => {
@@ -232,6 +275,99 @@ export default function RapidCapturePage() {
     []
   );
 
+  const handleTranscribe = useCallback(async () => {
+    if (transcribing) return;
+    const clips = await listClips();
+    if (clips.length === 0) return;
+    setTranscribing(true);
+    const toastId = toast.loading(`Transcribing ${clips.length}…`);
+    try {
+      const items = await Promise.all(
+        clips.map(async (c) => {
+          const { base64, mimeType } = await toWavBase64(c.blob);
+          return { ean: c.ean, audioBase64: base64, mimeType };
+        })
+      );
+      const res = await fetch("/api/transcribe/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items }),
+      });
+      const data = await res.json();
+      if (res.status === 409 && data.code === "NO_ACTIVE_SESSION") {
+        setSession({ kind: "no-active" });
+        toast.error("No active audit.", { id: toastId });
+        return;
+      }
+      if (res.status === 409 && data.code === "QUOTA_EXHAUSTED") {
+        toast.error("Quota reached for today — queue saved, try later.", {
+          id: toastId,
+          duration: 5000,
+        });
+        return;
+      }
+      if (!res.ok) {
+        toast.error(data.error ?? "Transcription failed.", { id: toastId });
+        return;
+      }
+      const rows: ReviewRow[] = (data.rows ?? []).map(
+        (r: {
+          ean: string;
+          name: string;
+          brand: string | null;
+          mrp: number | null;
+          confidence: number | null;
+          source: string;
+          flags: string[];
+        }) => ({
+          ean: r.ean,
+          name: r.name ?? "",
+          brand: r.brand ?? null,
+          mrp: r.mrp != null ? String(r.mrp) : "",
+          confidence: r.confidence,
+          source: r.source,
+          flags: r.flags ?? [],
+        })
+      );
+      setReview(rows);
+      toast.success("Review and save.", { id: toastId, duration: 2000 });
+    } catch {
+      toast.error("Network error while transcribing.", { id: toastId });
+    } finally {
+      setTranscribing(false);
+    }
+  }, [transcribing]);
+
+  const handleSaveReview = useCallback(async () => {
+    if (!review || savingAll) return;
+    setSavingAll(true);
+    const toastId = toast.loading("Saving all…");
+    const savedEans: string[] = [];
+    try {
+      for (const row of review) {
+        if (!row.name.trim()) continue; // skip empty rows; leave them queued
+        const mrpNum = row.mrp.trim() ? Number(row.mrp) : null;
+        const mrp =
+          Number.isFinite(mrpNum as number) && (mrpNum as number) > 0
+            ? (mrpNum as number)
+            : null;
+        await saveCaptured(row.ean, row.name.trim(), row.brand, mrp, {
+          confidence: row.confidence ?? undefined,
+        });
+        savedEans.push(row.ean);
+      }
+      await removeClips(savedEans);
+      const n = await countClips();
+      setQueueCount(n);
+      setReview(null);
+      toast.success(`Saved ${savedEans.length}.`, { id: toastId });
+    } catch {
+      toast.error("Some rows failed to save.", { id: toastId });
+    } finally {
+      setSavingAll(false);
+    }
+  }, [review, savingAll, saveCaptured]);
+
   const handleRecordingStop = useCallback(
     async (ean: string, mimeType: string) => {
       const blob = new Blob(chunksRef.current, {
@@ -243,54 +379,40 @@ export default function RapidCapturePage() {
         resetActive();
         return;
       }
-      setPhase("transcribing");
+      // Local silence gate: decode + measure voiced audio. No model call.
       try {
-        const { base64, mimeType: sendMime } = await toWavBase64(blob);
-        const res = await fetch("/api/transcribe", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ audioBase64: base64, mimeType: sendMime, ean }),
-        });
-        const data = await res.json();
-        if (res.status === 409 && data.code === "NO_ACTIVE_SESSION") {
-          setSession({ kind: "no-active" });
+        const buf = await decodeClip(blob);
+        if (voicedSeconds(buf) < TRIM_CONSTANTS.MIN_KEPT_S) {
+          toast("Didn't catch that — hold and say it again.");
           resetActive();
           return;
         }
-        if (res.ok) {
-          await saveCaptured(ean, data.name, data.brand ?? null, data.mrp ?? null, {
-            confidence: data.confidence,
-            transcript: data.transcript,
-          });
-          resetActive();
-          return;
-        }
-        // 422 low-confidence / other: hand off to the editable card.
-        setPending({
-          ean,
-          name: typeof data.name === "string" ? data.name : "",
-          brand: typeof data.brand === "string" ? data.brand : null,
-          mrp: data.mrp != null ? String(data.mrp) : "",
-          transcript: data.transcript,
-        });
-        setActiveEan(null);
-        setPhase("idle");
-        toast("Didn't catch that clearly — confirm or type it.");
       } catch {
-        setPending({ ean, name: "", brand: null, mrp: "" });
-        setActiveEan(null);
-        setPhase("idle");
-        toast.error("Couldn't transcribe — type it or re-record.");
+        // If decode fails, fall through and queue it anyway — better than dropping.
       }
+      try {
+        await enqueueClip(ean, blob, mimeType || "audio/webm");
+        const n = await countClips();
+        setQueueCount(n);
+        toast.success(`Queued (${n}/${QUEUE_MAX})`);
+      } catch {
+        toast.error("Couldn't queue the clip — try again.");
+      }
+      resetActive();
     },
-    [resetActive, saveCaptured]
+    [resetActive]
   );
 
   const handleScan = useCallback(
     async (raw: string) => {
       const ean = raw.trim();
       if (!ean) return;
-      if (looking || activeEan || pending || manualEan || phase !== "idle") return;
+      if (looking || activeEan || pending || manualEan || review || phase !== "idle")
+        return;
+      if (queueCount >= QUEUE_MAX) {
+        toast.error(`Queue full (${QUEUE_MAX}). Transcribe before scanning more.`);
+        return;
+      }
       setLooking(true);
       try {
         const res = await fetch(`/api/product/${encodeURIComponent(ean)}`, {
@@ -317,7 +439,7 @@ export default function RapidCapturePage() {
         setLooking(false);
       }
     },
-    [looking, activeEan, pending, manualEan, phase, mic]
+    [looking, activeEan, pending, manualEan, review, phase, mic, queueCount]
   );
 
   const startRecording = useCallback(() => {
@@ -394,6 +516,109 @@ export default function RapidCapturePage() {
             released={paused}
             onScan={handleScan}
           />
+
+          {!review && queueCount > 0 && (
+            <div className="flex items-center justify-between rounded-lg border border-border bg-surface p-4">
+              <span className="text-sm">
+                {queueCount} queued{" "}
+                <span className="text-muted">(max {QUEUE_MAX})</span>
+              </span>
+              <button
+                type="button"
+                onClick={handleTranscribe}
+                disabled={transcribing}
+                className="rounded-md bg-text px-4 py-2 text-sm font-medium text-bg disabled:opacity-50"
+              >
+                {transcribing ? "Transcribing…" : `Transcribe (${queueCount})`}
+              </button>
+            </div>
+          )}
+
+          {review && (
+            <div className="space-y-3 rounded-lg border border-border bg-surface p-4">
+              <p className="text-sm font-medium">Review {review.length} item(s)</p>
+              <div className="space-y-3">
+                {review.map((row, i) => (
+                  <div
+                    key={row.ean}
+                    className="space-y-2 rounded-md border border-border p-3"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono text-xs text-muted">{row.ean}</span>
+                      <span className="text-[10px] uppercase tracking-wider text-muted">
+                        {row.source}
+                        {row.flags.length > 0 ? ` · ${row.flags.join(", ")}` : ""}
+                      </span>
+                    </div>
+                    <input
+                      value={row.name}
+                      onChange={(e) =>
+                        setReview((prev) =>
+                          prev
+                            ? prev.map((r, j) =>
+                                j === i ? { ...r, name: e.target.value } : r
+                              )
+                            : prev
+                        )
+                      }
+                      placeholder="Product name"
+                      className="w-full rounded-md border border-border bg-bg px-3 py-2 text-sm text-text placeholder:text-muted/60 focus:border-text/60 focus:outline-none"
+                    />
+                    <div className="flex gap-2">
+                      <input
+                        value={row.brand ?? ""}
+                        onChange={(e) =>
+                          setReview((prev) =>
+                            prev
+                              ? prev.map((r, j) =>
+                                  j === i
+                                    ? { ...r, brand: e.target.value || null }
+                                    : r
+                                )
+                              : prev
+                          )
+                        }
+                        placeholder="Brand (optional)"
+                        className="flex-1 rounded-md border border-border bg-bg px-3 py-2 text-sm text-text placeholder:text-muted/60 focus:border-text/60 focus:outline-none"
+                      />
+                      <input
+                        value={row.mrp}
+                        onChange={(e) =>
+                          setReview((prev) =>
+                            prev
+                              ? prev.map((r, j) =>
+                                  j === i ? { ...r, mrp: e.target.value } : r
+                                )
+                              : prev
+                          )
+                        }
+                        inputMode="decimal"
+                        placeholder="MRP"
+                        className="w-28 rounded-md border border-border bg-bg px-3 py-2 text-sm text-text placeholder:text-muted/60 focus:border-text/60 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleSaveReview}
+                  disabled={savingAll}
+                  className="flex-1 rounded-md bg-text px-3 py-2 text-sm font-medium text-bg disabled:opacity-50"
+                >
+                  {savingAll ? "Saving…" : "Save all"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setReview(null)}
+                  className="rounded-md border border-border px-3 py-2 text-sm text-muted hover:text-text"
+                >
+                  Back
+                </button>
+              </div>
+            </div>
+          )}
 
           {looking && <p className="text-xs text-muted">Looking up…</p>}
 
