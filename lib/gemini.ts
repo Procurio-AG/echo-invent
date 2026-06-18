@@ -1,8 +1,24 @@
 // Server-only Gemini speech-to-text client with N-key round-robin + 429 failover.
 // Keys come from GEMINI_API_KEYS (comma-separated). Never import this client-side.
 
-const MODEL = "gemini-2.5-flash";
-const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
+// Model buckets. Each id is an independent free-tier daily quota bucket; env vars
+// let ops point them at newer ids once verified, without a code change. Default to
+// the only id verified working today so the app runs out of the box.
+export const MODEL_HEAR = process.env.GEMINI_MODEL_HEAR ?? "gemini-2.5-flash";
+export const MODEL_REPAIR = process.env.GEMINI_MODEL_REPAIR ?? "gemini-2.5-flash";
+export const MODEL_SPELL = process.env.GEMINI_MODEL_SPELL ?? "gemini-2.5-flash";
+export const MODEL_GROUND = process.env.GEMINI_MODEL_GROUND ?? "gemini-2.5-flash";
+
+function endpointFor(model: string): string {
+  return `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+}
+
+export class GeminiQuotaError extends Error {
+  constructor(message = "Gemini quota exhausted (all keys 429).") {
+    super(message);
+    this.name = "GeminiQuotaError";
+  }
+}
 
 export type Transcription = {
   name: string;
@@ -22,6 +38,44 @@ function loadKeys(): string[] {
 // Module-level round-robin cursor. Single Node worker -> good enough; we also
 // fail over on HTTP 429, so we never depend on precise per-key request counting.
 let cursor = 0;
+
+// One round-robin + 429-failover request against a given model. Returns the raw
+// parsed JSON response. Throws GeminiQuotaError when every key is rate-limited so
+// callers can fall back to another model bucket.
+async function callGemini(model: string, body: string): Promise<unknown> {
+  const keys = loadKeys();
+  if (keys.length === 0) {
+    throw new Error("No Gemini API keys configured (set GEMINI_API_KEYS).");
+  }
+  const endpoint = endpointFor(model);
+  let lastError: unknown = null;
+  let sawRateLimit = false;
+  for (let attempt = 0; attempt < keys.length; attempt++) {
+    const key = keys[(cursor + attempt) % keys.length];
+    try {
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+        body,
+      });
+      if (res.status === 429) {
+        sawRateLimit = true;
+        lastError = new Error("Key rate-limited (429).");
+        continue;
+      }
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(`Gemini ${res.status}: ${text.slice(0, 200)}`);
+      }
+      cursor = (cursor + attempt + 1) % keys.length;
+      return await res.json();
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  if (sawRateLimit) throw new GeminiQuotaError();
+  throw lastError instanceof Error ? lastError : new Error("Gemini request failed.");
+}
 
 const RESPONSE_SCHEMA = {
   type: "OBJECT",
@@ -48,13 +102,9 @@ Example: spoken "Haldiram Khus Syrup saat sau pachaas ml, em-AR-pee ek sau pacha
 
 export async function transcribeAudio(
   audioBase64: string,
-  mimeType: string
+  mimeType: string,
+  model: string = MODEL_REPAIR
 ): Promise<Transcription> {
-  const keys = loadKeys();
-  if (keys.length === 0) {
-    throw new Error("No Gemini API keys configured (set GEMINI_API_KEYS).");
-  }
-
   const body = JSON.stringify({
     contents: [
       {
@@ -70,35 +120,8 @@ export async function transcribeAudio(
       temperature: 0,
     },
   });
-
-  let lastError: unknown = null;
-  // Try each key once, rotating from the current cursor; fail over on 429.
-  for (let attempt = 0; attempt < keys.length; attempt++) {
-    const key = keys[(cursor + attempt) % keys.length];
-    try {
-      const res = await fetch(ENDPOINT, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-        body,
-      });
-      if (res.status === 429) {
-        lastError = new Error("All keys rate-limited (429).");
-        continue;
-      }
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(`Gemini ${res.status}: ${text.slice(0, 200)}`);
-      }
-      // Advance the cursor past the key that succeeded for the next request.
-      cursor = (cursor + attempt + 1) % keys.length;
-      const data = (await res.json()) as unknown;
-      return parseResult(data);
-    } catch (err) {
-      lastError = err;
-      // network / parse error: try the next key
-    }
-  }
-  throw lastError instanceof Error ? lastError : new Error("Transcription failed.");
+  const data = await callGemini(model, body);
+  return parseResult(data);
 }
 
 function parseResult(data: unknown): Transcription {
@@ -130,4 +153,126 @@ function parseResult(data: unknown): Transcription {
   const needs_review = parsed.needs_review === true || name === "";
 
   return { name, brand, mrp, confidence, needs_review };
+}
+
+export type NameItem = { ean: string; name: string; brand: string | null };
+export type NameSuggestion = {
+  ean: string;
+  name: string;
+  brand: string | null;
+  correction_conf: number;
+};
+
+const NAME_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    items: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: {
+          ean: { type: "STRING" },
+          name: { type: "STRING" },
+          brand: { type: "STRING", nullable: true },
+          correction_conf: { type: "NUMBER" },
+        },
+        required: ["ean", "name", "correction_conf"],
+      },
+    },
+  },
+  required: ["items"],
+};
+
+const CORRECT_PROMPT = `These are phonetically transcribed Indian retail product names, possibly misspelled (e.g. "Kiyo Karpin Oil" should be "Keo Karpin Oil"). For EACH input item return the canonical brand + product spelling in Latin/Roman script. Keep any size/quantity inside name (e.g. "750ml"). Do NOT invent products or add items. Echo back each item's ean UNCHANGED. correction_conf is 0..1: how confident the corrected spelling is.`;
+
+const GROUND_PROMPT = `These are phonetically transcribed Indian retail product names that may be misspelled. Use web search to find the correct canonical brand and product spelling for EACH item. Keep size/quantity in name. Do NOT invent products. Echo each ean unchanged.`;
+
+// Defensive parse: works for both structured-JSON responses and grounded prose
+// that embeds JSON (grounding + responseSchema can be mutually exclusive).
+function extractJson(raw: string): string | null {
+  const fence = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const s = fence ? fence[1] : raw;
+  const start = s.indexOf("{");
+  const end = s.lastIndexOf("}");
+  if (start === -1 || end === -1 || end < start) return null;
+  return s.slice(start, end + 1);
+}
+
+function parseNameItems(data: unknown): NameSuggestion[] {
+  const d = data as {
+    candidates?: { content?: { parts?: { text?: string }[] } }[];
+  };
+  const raw =
+    d?.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("") ?? "";
+  const json = extractJson(raw);
+  if (!json) return [];
+  let parsed: { items?: unknown };
+  try {
+    parsed = JSON.parse(json) as { items?: unknown };
+  } catch {
+    return [];
+  }
+  const arr = Array.isArray(parsed.items) ? parsed.items : [];
+  const out: NameSuggestion[] = [];
+  for (const entry of arr) {
+    const it = entry as Record<string, unknown>;
+    const ean = typeof it.ean === "string" ? it.ean.trim() : "";
+    if (!ean) continue;
+    const name = typeof it.name === "string" ? it.name.trim() : "";
+    const brand =
+      typeof it.brand === "string" && it.brand.trim() ? it.brand.trim() : null;
+    const c = typeof it.correction_conf === "number" ? it.correction_conf : 0;
+    out.push({
+      ean,
+      name,
+      brand,
+      correction_conf: Number.isFinite(c) ? Math.max(0, Math.min(1, c)) : 0,
+    });
+  }
+  return out;
+}
+
+// Tier 1 / pipeline Stage 2 — cheap text-only batch correction.
+export async function correctNamesBatch(
+  items: NameItem[],
+  model: string = MODEL_SPELL
+): Promise<NameSuggestion[]> {
+  if (items.length === 0) return [];
+  const body = JSON.stringify({
+    contents: [
+      { parts: [{ text: `${CORRECT_PROMPT}\n\nINPUT:\n${JSON.stringify(items)}` }] },
+    ],
+    generationConfig: {
+      responseMimeType: "application/json",
+      responseSchema: NAME_SCHEMA,
+      temperature: 0,
+    },
+  });
+  const data = await callGemini(model, body);
+  return parseNameItems(data);
+}
+
+// Tier 2 / pipeline Stage 3 — Google-Search grounded, defensive parse, no schema.
+export async function groundedNamesBatch(
+  items: NameItem[],
+  model: string = MODEL_GROUND
+): Promise<NameSuggestion[]> {
+  if (items.length === 0) return [];
+  const body = JSON.stringify({
+    contents: [
+      {
+        parts: [
+          {
+            text: `${GROUND_PROMPT}\n\nINPUT:\n${JSON.stringify(
+              items
+            )}\n\nReturn ONLY a JSON object {"items":[{"ean","name","brand","correction_conf"}]} and no other prose.`,
+          },
+        ],
+      },
+    ],
+    tools: [{ google_search: {} }],
+    generationConfig: { temperature: 0 },
+  });
+  const data = await callGemini(model, body);
+  return parseNameItems(data);
 }

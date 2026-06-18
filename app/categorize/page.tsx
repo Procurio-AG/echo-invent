@@ -47,6 +47,9 @@ export default function CategorizePage() {
   const [selections, setSelections] = useState<Record<string, Override>>({});
   const [saving, setSaving] = useState(false);
   const [knownNames, setKnownNames] = useState<string[]>([]);
+  const [suggesting, setSuggesting] = useState(false);
+  // EANs that received an applied suggestion this pass, for the "suggested" badge.
+  const [suggestedEans, setSuggestedEans] = useState<Set<string>>(new Set());
 
   const allCategories = useMemo(() => {
     const fromGroups = groups.flatMap((g) => g.subcategories);
@@ -285,6 +288,65 @@ export default function CategorizePage() {
     }
   }, [saving, dirtyCount, rows, selections, requestList, skip, query]);
 
+  const handleFixNames = useCallback(async () => {
+    if (suggesting || rows.length === 0) return;
+    setSuggesting(true);
+    const toastId = toast.loading("Suggesting corrected names…");
+    try {
+      const res = await fetch("/api/product/suggest-names", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eans: rows.map((r) => r.ean) }),
+      });
+      const data = await res.json();
+      if (res.status === 409 && data.code === "NO_ACTIVE_SESSION") {
+        setState({ kind: "no-active" });
+        toast.error("No active audit.", { id: toastId });
+        return;
+      }
+      if (!res.ok) {
+        toast.error(data.error ?? "Suggestion failed.", { id: toastId });
+        return;
+      }
+      const suggestions: {
+        ean: string;
+        suggested_name: string;
+        suggested_brand: string | null;
+        source: string;
+        changed: boolean;
+      }[] = data.suggestions ?? [];
+      const byEan = new Map(suggestions.map((s) => [s.ean, s]));
+      const changedEans = new Set<string>();
+      // Merge changed suggestions into the per-row override state (not saved yet).
+      setSelections((prev) => {
+        const next = { ...prev };
+        for (const r of rows) {
+          const s = byEan.get(r.ean);
+          if (!s || !s.changed) continue;
+          changedEans.add(r.ean);
+          next[r.id] = {
+            ...next[r.id],
+            name: s.suggested_name,
+            brand: s.suggested_brand,
+          };
+        }
+        return next;
+      });
+      setSuggestedEans(changedEans);
+      const n = changedEans.size;
+      toast.success(
+        n > 0
+          ? `${n} suggestion${n === 1 ? "" : "s"} applied — review & save`
+          : "No changes suggested",
+        { id: toastId, duration: 3000 }
+      );
+    } catch {
+      toast.error("Network error.", { id: toastId });
+    } finally {
+      setSuggesting(false);
+    }
+  }, [suggesting, rows]);
+
   const pageStart = total === 0 ? 0 : skip + 1;
   const pageEnd = Math.min(skip + rows.length, total);
   const hasPrev = skip > 0;
@@ -330,6 +392,14 @@ export default function CategorizePage() {
               className="flex-1 rounded-md border border-border bg-bg px-3 py-2 text-sm text-text placeholder:text-muted/60 focus:border-text/60 focus:outline-none"
               aria-label="Search worklist by name or EAN"
             />
+            <button
+              type="button"
+              onClick={handleFixNames}
+              disabled={suggesting || saving || rows.length === 0}
+              className="rounded-md border border-border bg-bg px-4 py-2 text-sm font-medium text-text transition hover:bg-border disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {suggesting ? "Fixing…" : "Fix names"}
+            </button>
           </div>
 
           {total === 0 ? (
@@ -376,6 +446,11 @@ export default function CategorizePage() {
                           className="border-b border-border last:border-b-0 align-top hover:bg-surface/60"
                         >
                           <td className="px-4 py-3">
+                            {suggestedEans.has(p.ean) && (
+                              <span className="mb-1 inline-block rounded bg-amber-900/40 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-amber-300">
+                                suggested
+                              </span>
+                            )}
                             <input
                               type="text"
                               value={effName(p)}
