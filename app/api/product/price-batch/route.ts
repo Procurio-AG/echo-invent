@@ -13,6 +13,8 @@ type Item = {
   selling_price?: number | null;
   mrp?: number | null;
   category?: string | null;
+  name?: string; // NEW: provided => trim; reject "" to invalid
+  brand?: string | null; // NEW: null/"" => clear; string => trim + store
 };
 
 type Body = {
@@ -89,6 +91,8 @@ export async function POST(req: Request) {
     selling_price: number | null | undefined;
     mrp: number | null | undefined;
     category: string | null | undefined;
+    name: string | undefined; // undefined => leave unchanged
+    brand: string | null | undefined; // undefined => leave; null => clear
   };
   const resolved: Resolved[] = [];
 
@@ -142,17 +146,51 @@ export async function POST(req: Request) {
       category = trimmed;
     }
 
+    // name: undefined => unchanged; provided => trim; empty => invalid (never write "").
+    let name: string | undefined;
+    if (item.name === undefined) {
+      name = undefined;
+    } else {
+      const trimmed = item.name.trim();
+      if (!trimmed) {
+        invalid.push({ ean, reason: "name cannot be empty" });
+        continue;
+      }
+      name = trimmed;
+    }
+
+    // brand: undefined => unchanged; null/"" => clear; otherwise trim + store.
+    let brand: string | null | undefined;
+    if (item.brand === undefined) {
+      brand = undefined;
+    } else if (item.brand === null || item.brand === "") {
+      brand = null;
+    } else {
+      brand = item.brand.trim() || null;
+    }
+
     // No actual field to write — skip rather than bump the version for nothing.
     if (
       purchase_price === undefined &&
       selling_price === undefined &&
       mrp === undefined &&
-      category === undefined
+      category === undefined &&
+      name === undefined &&
+      brand === undefined
     ) {
       continue;
     }
 
-    resolved.push({ ean, version, purchase_price, selling_price, mrp, category });
+    resolved.push({
+      ean,
+      version,
+      purchase_price,
+      selling_price,
+      mrp,
+      category,
+      name,
+      brand,
+    });
   }
 
   // ── Process in chunks; one interactive transaction per chunk. ──────────────
@@ -169,7 +207,7 @@ export async function POST(req: Request) {
       for (const r of chunk) {
         const existing = await tx.product.findUnique({
           where: { session_id_ean: { session_id: session.id, ean: r.ean } },
-          select: { id: true, version: true },
+          select: { id: true, version: true, original_data: true },
         });
         if (!existing) {
           out.push({ kind: "not_found", ean: r.ean });
@@ -182,6 +220,14 @@ export async function POST(req: Request) {
 
         // Partial update: only spread provided (defined) prices, mirroring the
         // update route so a blank input never wipes an existing value.
+        const nextOriginal =
+          r.brand !== undefined
+            ? {
+                ...((existing.original_data as Record<string, unknown>) ?? {}),
+                brand: r.brand,
+              }
+            : undefined;
+
         const updated = await tx.product.update({
           where: { id: existing.id, version: r.version },
           data: {
@@ -189,6 +235,8 @@ export async function POST(req: Request) {
             ...(r.selling_price !== undefined ? { selling_price: r.selling_price } : {}),
             ...(r.mrp !== undefined ? { mrp: r.mrp } : {}),
             ...(r.category !== undefined ? { category: r.category } : {}),
+            ...(r.name !== undefined ? { name: r.name } : {}),
+            ...(nextOriginal !== undefined ? { original_data: nextOriginal } : {}),
             status: "updated",
             version: { increment: 1 },
           },

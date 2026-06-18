@@ -22,6 +22,7 @@ export type HeaderMap = {
   purchase_price?: string;
   selling_price?: string;
   mrp?: string;
+  brand?: string;
 };
 
 const HEADER_CANDIDATES = {
@@ -31,6 +32,7 @@ const HEADER_CANDIDATES = {
   purchase_price: ["purchase price", "cost price", "cost", "pp"],
   selling_price: ["selling price", "sell price", "sp"],
   mrp: ["mrp", "max retail price", "maximum retail price"],
+  brand: ["brand", "manufacturer", "company"],
 } as const;
 
 export function resolveHeaders(sample: Record<string, unknown>): HeaderMap {
@@ -46,6 +48,7 @@ export function resolveHeaders(sample: Record<string, unknown>): HeaderMap {
     purchase_price: find(HEADER_CANDIDATES.purchase_price),
     selling_price: find(HEADER_CANDIDATES.selling_price),
     mrp: find(HEADER_CANDIDATES.mrp),
+    brand: find(HEADER_CANDIDATES.brand),
   };
 }
 
