@@ -14,6 +14,7 @@ export type Product = {
   mrp: number | null;
   status: string;
   version: number;
+  original_data?: Record<string, unknown> | null;
 };
 
 export type CategoryGroup = { parent: string; subcategories: string[] };

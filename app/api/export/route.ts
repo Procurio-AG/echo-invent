@@ -55,6 +55,13 @@ export async function GET(req: Request) {
     : (Object.fromEntries(DEFAULT_COLUMNS.map((c) => [c, null])) as Record<string, unknown>);
   const headers = resolveHeaders(firstOriginal);
 
+  // Brand is exported as its own column. Reuse a source brand header if the
+  // workbook had one; otherwise append a "Brand" column to the shape.
+  const brandColumn = headers.brand ?? "Brand";
+  if (!(brandColumn in firstOriginal)) {
+    (firstOriginal as Record<string, unknown>)[brandColumn] = null;
+  }
+
   const rows = products.map((p) => {
     const original = { ...(p.original_data as Record<string, unknown>) };
     // Manually-created rows have empty original_data — seed them with the chosen column shape.
@@ -67,6 +74,8 @@ export async function GET(req: Request) {
     if (headers.purchase_price) original[headers.purchase_price] = p.purchase_price;
     if (headers.selling_price) original[headers.selling_price] = p.selling_price;
     if (headers.mrp) original[headers.mrp] = p.mrp;
+    const brand = (p.original_data as Record<string, unknown>)?.brand;
+    original[brandColumn] = typeof brand === "string" ? brand : "";
     return original;
   });
 
