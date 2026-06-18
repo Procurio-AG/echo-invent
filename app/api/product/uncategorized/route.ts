@@ -62,6 +62,7 @@ export async function GET(req: Request) {
         mrp: true,
         status: true,
         version: true,
+        original_data: true,
       },
     }),
     prisma.product.count({ where }),

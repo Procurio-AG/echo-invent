@@ -41,9 +41,12 @@ export default function CategorizePage() {
   const [query, setQuery] = useState("");
   const [groups, setGroups] = useState<CategoryGroup[]>([]);
 
-  // Per-row selected category keyed by product id. "" = no change.
-  const [selections, setSelections] = useState<Record<string, string>>({});
+  // Per-row edits keyed by product id. Each holds only the fields that differ
+  // from the loaded row; an empty/absent override means "no change".
+  type Override = { name?: string; brand?: string | null; category?: string };
+  const [selections, setSelections] = useState<Record<string, Override>>({});
   const [saving, setSaving] = useState(false);
+  const [knownNames, setKnownNames] = useState<string[]>([]);
 
   const allCategories = useMemo(() => {
     const fromGroups = groups.flatMap((g) => g.subcategories);
@@ -113,6 +116,22 @@ export default function CategorizePage() {
     };
   }, []);
 
+  // Load known product names once for the type-ahead datalist.
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/product/names", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : { names: [] }))
+      .then((d) => {
+        if (!cancelled) setKnownNames(d.names ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setKnownNames([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Initial load.
   useEffect(() => {
     fetchList(0, "");
@@ -134,27 +153,62 @@ export default function CategorizePage() {
     fetchList(0, query);
   }, [query, fetchList]);
 
-  const setSelection = useCallback((id: string, value: string) => {
-    setSelections((prev) => {
-      if (value.trim() === "") {
-        const { [id]: _drop, ...rest } = prev;
-        return rest;
-      }
-      return { ...prev, [id]: value };
-    });
+  const loadedBrand = (p: Product): string => {
+    const b = (p.original_data as Record<string, unknown> | null | undefined)?.brand;
+    return typeof b === "string" ? b : "";
+  };
+
+  // The value shown in each input: the override if present, else the loaded row.
+  const effName = (p: Product) => selections[p.id]?.name ?? p.name;
+  const effBrand = (p: Product) => {
+    const o = selections[p.id];
+    if (o && "brand" in o) return o.brand ?? "";
+    return loadedBrand(p);
+  };
+  const effCategory = (p: Product) => selections[p.id]?.category ?? "";
+
+  const rowDirty = (p: Product): boolean => {
+    const o = selections[p.id];
+    if (!o) return false;
+    if (o.name !== undefined && o.name !== p.name) return true;
+    if ("brand" in o && (o.brand ?? "") !== loadedBrand(p)) return true;
+    if (o.category !== undefined && o.category !== "") return true;
+    return false;
+  };
+
+  const updateOverride = useCallback((id: string, patch: Override) => {
+    setSelections((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
   }, []);
 
-  const dirtyCount = Object.keys(selections).length;
+  const dirtyCount = rows.filter(rowDirty).length;
 
   const handleSaveAll = useCallback(async () => {
     if (saving || dirtyCount === 0) return;
 
-    // Build the batch payload from rows with a non-empty selection.
-    const items: { id: string; ean: string; version: number; category: string }[] = [];
+    // Build the batch payload from dirty rows, sending only changed fields.
+    const items: {
+      id: string;
+      ean: string;
+      version: number;
+      name?: string;
+      brand?: string | null;
+      category?: string;
+    }[] = [];
     for (const r of rows) {
-      const category = selections[r.id];
-      if (!category || !category.trim()) continue;
-      items.push({ id: r.id, ean: r.ean, version: r.version, category });
+      if (!rowDirty(r)) continue;
+      const o = selections[r.id];
+      const item: {
+        id: string;
+        ean: string;
+        version: number;
+        name?: string;
+        brand?: string | null;
+        category?: string;
+      } = { id: r.id, ean: r.ean, version: r.version };
+      if (o.name !== undefined && o.name !== r.name) item.name = o.name;
+      if ("brand" in o) item.brand = o.brand;
+      if (o.category) item.category = o.category;
+      items.push(item);
     }
 
     if (items.length === 0) return;
@@ -184,7 +238,7 @@ export default function CategorizePage() {
       // Capture which rows conflicted, keyed by ean, so we can re-apply the
       // chosen category on top of the freshly-refetched rows.
       const conflictEans = new Set(result.conflicts.map((c) => c.ean));
-      const conflictSelByEan = new Map<string, string>();
+      const conflictSelByEan = new Map<string, Override>();
       for (const r of rows) {
         if (conflictEans.has(r.ean) && selections[r.id]) {
           conflictSelByEan.set(r.ean, selections[r.id]);
@@ -202,7 +256,7 @@ export default function CategorizePage() {
         // Re-apply conflict rows' selections on top of the refetched rows
         // (matched by ean, since ids are stable per session) so the auditor can
         // retry against the now-current version without re-selecting.
-        const nextSelections: Record<string, string> = {};
+        const nextSelections: Record<string, Override> = {};
         for (const r of payload.rows) {
           const carried = conflictSelByEan.get(r.ean);
           if (carried) nextSelections[r.id] = carried;
@@ -300,6 +354,12 @@ export default function CategorizePage() {
                 </p>
               </div>
 
+              <datalist id="known-names">
+                {knownNames.map((n) => (
+                  <option key={n} value={n} />
+                ))}
+              </datalist>
+
               <div className="overflow-x-auto rounded-lg border border-border">
                 <table className="w-full min-w-[760px] border-collapse text-sm">
                   <thead>
@@ -310,15 +370,25 @@ export default function CategorizePage() {
                   </thead>
                   <tbody>
                     {rows.map((p) => {
-                      const selected = selections[p.id] ?? "";
                       return (
                         <tr
                           key={p.id}
                           className="border-b border-border last:border-b-0 align-top hover:bg-surface/60"
                         >
                           <td className="px-4 py-3">
-                            <p className="font-medium text-text">{p.name}</p>
-                            <p className="mt-0.5 text-xs text-muted">
+                            <input
+                              type="text"
+                              value={effName(p)}
+                              list="known-names"
+                              onChange={(ev) =>
+                                updateOverride(p.id, { name: ev.target.value })
+                              }
+                              disabled={saving}
+                              placeholder="Product name"
+                              className="w-full rounded-md border border-border bg-bg px-2 py-1.5 text-sm text-text outline-none focus:border-text/60 disabled:opacity-50"
+                              aria-label={`Name for ${p.name}`}
+                            />
+                            <p className="mt-1 text-xs text-muted">
                               <span className="font-mono">{p.ean}</span>
                               {` · MRP ₹${fmtPrice(p.mrp)} · PP ₹${fmtPrice(
                                 p.purchase_price
@@ -326,20 +396,37 @@ export default function CategorizePage() {
                             </p>
                           </td>
                           <td className="px-3 py-3">
-                            <select
-                              value={selected}
-                              onChange={(ev) => setSelection(p.id, ev.target.value)}
-                              disabled={saving}
-                              className="w-48 rounded-md border border-border bg-bg px-2 py-2 text-sm text-text outline-none focus:border-text/60 disabled:opacity-50"
-                              aria-label={`Category for ${p.name}`}
-                            >
-                              <option value="">— set category —</option>
-                              {allCategories.map((c) => (
-                                <option key={c} value={c}>
-                                  {c}
-                                </option>
-                              ))}
-                            </select>
+                            <div className="flex flex-col gap-2">
+                              <input
+                                type="text"
+                                value={effBrand(p)}
+                                onChange={(ev) =>
+                                  updateOverride(p.id, {
+                                    brand: ev.target.value || null,
+                                  })
+                                }
+                                disabled={saving}
+                                placeholder="Brand (optional)"
+                                className="w-48 rounded-md border border-border bg-bg px-2 py-1.5 text-sm text-text outline-none focus:border-text/60 disabled:opacity-50"
+                                aria-label={`Brand for ${p.name}`}
+                              />
+                              <select
+                                value={effCategory(p)}
+                                onChange={(ev) =>
+                                  updateOverride(p.id, { category: ev.target.value })
+                                }
+                                disabled={saving}
+                                className="w-48 rounded-md border border-border bg-bg px-2 py-2 text-sm text-text outline-none focus:border-text/60 disabled:opacity-50"
+                                aria-label={`Category for ${p.name}`}
+                              >
+                                <option value="">— set category —</option>
+                                {allCategories.map((c) => (
+                                  <option key={c} value={c}>
+                                    {c}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
                           </td>
                         </tr>
                       );
@@ -374,7 +461,11 @@ export default function CategorizePage() {
                 <button
                   type="button"
                   onClick={handleSaveAll}
-                  disabled={saving || dirtyCount === 0}
+                  disabled={
+                    saving ||
+                    dirtyCount === 0 ||
+                    rows.some((p) => rowDirty(p) && !effName(p).trim())
+                  }
                   className="rounded-md border border-border bg-text px-6 py-2 text-sm font-medium text-bg transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {saving
