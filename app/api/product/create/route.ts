@@ -13,6 +13,8 @@ type Body = {
   purchase_price?: number | null;
   selling_price?: number | null;
   mrp?: number | null;
+  batch?: string | null;
+  expiry_date?: string | null;
   status?: string;
   original_data?: Record<string, unknown>;
 };
@@ -21,6 +23,12 @@ function toNullableNumber(v: unknown): number | null {
   if (v === null || v === undefined || v === "") return null;
   const n = typeof v === "number" ? v : Number(v);
   return Number.isFinite(n) ? n : null;
+}
+
+function toNullableDate(v: unknown): Date | null {
+  if (v === null || v === undefined || v === "") return null;
+  const d = new Date(String(v));
+  return Number.isNaN(d.getTime()) ? null : d;
 }
 
 export async function POST(req: Request) {
@@ -52,6 +60,9 @@ export async function POST(req: Request) {
   const purchase_price = toNullableNumber(body.purchase_price);
   const selling_price = toNullableNumber(body.selling_price);
   const mrp = toNullableNumber(body.mrp);
+  // batch defaults to "open" when omitted/blank; expiry is optional.
+  const batch = body.batch && body.batch.trim() ? body.batch.trim() : "open";
+  const expiry_date = toNullableDate(body.expiry_date);
   // Allowlist: only the voice rapid-capture flow may set 'captured'; anything
   // else (including absent) keeps the existing 'updated' behavior.
   const status = body.status === "captured" ? "captured" : "updated";
@@ -78,6 +89,8 @@ export async function POST(req: Request) {
           purchase_price,
           selling_price,
           mrp,
+          batch,
+          expiry_date,
           original_data: (body.original_data ?? {}) as Prisma.InputJsonValue,
           status,
         },
