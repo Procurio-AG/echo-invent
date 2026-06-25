@@ -32,6 +32,8 @@ export function buildProductWhere(
     category?: string;
     exported?: boolean;
     complete?: boolean;
+    hasImages?: boolean;
+    hasExpiry?: boolean;
   }
 ): Prisma.ProductWhereInput {
   const and: Prisma.ProductWhereInput[] = [];
@@ -46,6 +48,10 @@ export function buildProductWhere(
   if (opts.exported === false) where.exported_at = null;
   if (opts.complete === true) and.push(COMPLETE_WHERE);
   if (opts.complete === false) and.push(INCOMPLETE_WHERE);
+  if (opts.hasImages === true) and.push({ images: { some: {} } });
+  if (opts.hasImages === false) and.push({ images: { none: {} } });
+  if (opts.hasExpiry === true) and.push({ expiry_date: { not: null } });
+  if (opts.hasExpiry === false) and.push({ expiry_date: null });
   if (opts.q) {
     and.push({
       OR: [

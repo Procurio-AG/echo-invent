@@ -22,6 +22,8 @@ export async function GET(req: Request) {
   const category = url.searchParams.get("category")?.trim() ?? "";
   const exported = url.searchParams.get("exported"); // "true" | "false" | null
   const complete = url.searchParams.get("complete"); // "true" | "false" | null
+  const images = url.searchParams.get("images"); // "none" | null
+  const expiry = url.searchParams.get("expiry"); // "none" | null
   const skip = clampInt(url.searchParams.get("skip"), 0, 0, Number.MAX_SAFE_INTEGER);
   const take = clampInt(url.searchParams.get("take"), DEFAULT_TAKE, 1, MAX_TAKE);
 
@@ -41,6 +43,8 @@ export async function GET(req: Request) {
     category: category || undefined,
     exported: exported === "true" ? true : exported === "false" ? false : undefined,
     complete: complete === "true" ? true : complete === "false" ? false : undefined,
+    hasImages: images === "none" ? false : undefined,
+    hasExpiry: expiry === "none" ? false : undefined,
   });
 
   const [products, total] = await Promise.all([
