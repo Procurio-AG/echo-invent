@@ -13,6 +13,8 @@ type Body = {
   purchase_price?: number | null;
   selling_price?: number | null;
   mrp?: number | null;
+  batch?: string | null;
+  expiry_date?: string | null;
 };
 
 function toNullableNumber(v: unknown): number | null | undefined {
@@ -20,6 +22,14 @@ function toNullableNumber(v: unknown): number | null | undefined {
   if (v === null || v === "") return null;
   const n = typeof v === "number" ? v : Number(v);
   return Number.isFinite(n) ? n : null;
+}
+
+// undefined = field absent (leave unchanged); null = explicit clear.
+function parseExpiry(v: unknown): Date | null | undefined {
+  if (v === undefined) return undefined;
+  if (v === null || v === "") return null;
+  const d = new Date(String(v));
+  return Number.isNaN(d.getTime()) ? null : d;
 }
 
 export async function POST(req: Request) {
@@ -66,6 +76,13 @@ export async function POST(req: Request) {
   const selling_price = toNullableNumber(body.selling_price);
   const mrp = toNullableNumber(body.mrp);
 
+  let batch: string | null | undefined;
+  if (body.batch !== undefined) {
+    const trimmed = (body.batch ?? "").trim();
+    batch = trimmed === "" ? null : trimmed;
+  }
+  const expiry_date = parseExpiry(body.expiry_date);
+
   const session = await prisma.session.findFirst({
     where: { closed_at: null },
     orderBy: { started_at: "desc" },
@@ -97,6 +114,8 @@ export async function POST(req: Request) {
         ...(purchase_price !== undefined ? { purchase_price } : {}),
         ...(selling_price !== undefined ? { selling_price } : {}),
         ...(mrp !== undefined ? { mrp } : {}),
+        ...(batch !== undefined ? { batch } : {}),
+        ...(expiry_date !== undefined ? { expiry_date } : {}),
         status: "updated",
         version: { increment: 1 },
       },

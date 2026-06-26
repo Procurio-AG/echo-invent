@@ -20,23 +20,41 @@ model Session {
 }
 
 model Product {
-  id             String       @id @default(uuid())
+  id             String         @id @default(uuid())
   session_id     String
-  session        Session      @relation(fields: [session_id], references: [id], onDelete: Cascade)
+  session        Session        @relation(fields: [session_id], references: [id], onDelete: Cascade)
   ean            String
   name           String
   category       String?
   purchase_price Float?
   selling_price  Float?
   mrp            Float?
+  batch          String?        @default("open")
+  expiry_date    DateTime?      @db.Date
+  exported_at    DateTime?
   original_data  Json
-  status         String       @default("pending")
-  version        Int          @default(1)
-  updated_at     DateTime     @updatedAt
+  status         String         @default("pending")
+  version        Int            @default(1)
+  updated_at     DateTime       @updatedAt
   audit_entries  AuditEntry[]
+  images         ProductImage[]
 
   @@unique([session_id, ean])
   @@index([session_id, status])
+  @@index([session_id, exported_at])
+}
+
+model ProductImage {
+  id         String   @id @default(uuid())
+  product_id String
+  product    Product  @relation(fields: [product_id], references: [id], onDelete: Cascade)
+  path       String // storage object path: "<session_id>/<ean>/<uuid>.jpg"
+  position   Int // 0..2 ordering slot
+  size_bytes Int
+  created_at DateTime @default(now())
+
+  @@unique([product_id, position])
+  @@index([product_id])
 }
 
 model AuditEntry {

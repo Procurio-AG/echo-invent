@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { toast } from "react-hot-toast";
 
 export type Product = {
@@ -12,9 +12,13 @@ export type Product = {
   purchase_price: number | null;
   selling_price: number | null;
   mrp: number | null;
+  batch?: string | null;
+  expiry_date?: string | null;
   status: string;
   version: number;
 };
+
+type ProductImage = { id: string; url: string; position: number };
 
 export type CategoryGroup = { parent: string; subcategories: string[] };
 
@@ -88,6 +92,10 @@ export const ProductForm = forwardRef<ProductFormHandle, Props>(function Product
   const initialSpDisc = isCreate
     ? ""
     : discountStr(props.product.selling_price, props.product.mrp);
+  const initialBatch = isCreate ? "" : props.product.batch ?? "";
+  const initialExpiry = isCreate
+    ? ""
+    : (props.product.expiry_date ?? "").slice(0, 10);
 
   const [name, setName] = useState<string>(initialName);
   const [category, setCategory] = useState<string>(initialCategory);
@@ -96,8 +104,12 @@ export const ProductForm = forwardRef<ProductFormHandle, Props>(function Product
   const [sp, setSp] = useState<string>(initialSp);
   const [ppDisc, setPpDisc] = useState<string>(initialPpDisc);
   const [spDisc, setSpDisc] = useState<string>(initialSpDisc);
+  const [batch, setBatch] = useState<string>(initialBatch);
+  const [expiry, setExpiry] = useState<string>(initialExpiry);
   const [saving, setSaving] = useState(false);
   const [locked, setLocked] = useState(false);
+
+  const [images, setImages] = useState<ProductImage[]>([]);
 
   const [groups, setGroups] = useState<CategoryGroup[] | null>(null);
   const [parentFilter, setParentFilter] = useState<string>("");
@@ -148,10 +160,52 @@ export const ProductForm = forwardRef<ProductFormHandle, Props>(function Product
     setSp(initialSp);
     setPpDisc(initialPpDisc);
     setSpDisc(initialSpDisc);
+    setBatch(initialBatch);
+    setExpiry(initialExpiry);
     setLocked(false);
     if (!initialCategory) setParentFilter("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resetKey]);
+
+  // Load existing images for the read-only strip (edit mode only).
+  const ean = isCreate ? props.ean : props.product.ean;
+  const loadImages = useCallback(async () => {
+    if (isCreate) return;
+    try {
+      const res = await fetch(
+        `/api/product/${encodeURIComponent(ean)}/images`,
+        { cache: "no-store" }
+      );
+      if (!res.ok) return;
+      const data = await res.json();
+      setImages((data.images ?? []) as ProductImage[]);
+    } catch {
+      /* non-fatal — images are optional */
+    }
+  }, [isCreate, ean]);
+
+  useEffect(() => {
+    setImages([]);
+    loadImages();
+  }, [loadImages, resetKey]);
+
+  const deleteImage = async (id: string) => {
+    const prev = images;
+    setImages((imgs) => imgs.filter((i) => i.id !== id)); // optimistic
+    try {
+      const res = await fetch(
+        `/api/product/${encodeURIComponent(ean)}/images?imageId=${id}`,
+        { method: "DELETE" }
+      );
+      if (!res.ok) {
+        setImages(prev);
+        toast.error("Could not delete image.");
+      }
+    } catch {
+      setImages(prev);
+      toast.error("Network error deleting image.");
+    }
+  };
 
   // ── MRP-discount calculator ───────────────────────────────────────────────
   // Purchase/selling price and their "% off MRP" boxes stay in sync: editing a
@@ -218,6 +272,8 @@ export const ProductForm = forwardRef<ProductFormHandle, Props>(function Product
         purchase_price: toNumOrNull(pp),
         mrp: toNumOrNull(mrp),
         selling_price: toNumOrNull(sp),
+        batch: batch.trim(),
+        expiry_date: expiry || null,
       };
       const endpoint = isCreate ? "/api/product/create" : "/api/product/update";
       const body = isCreate ? payload : { ...payload, version: props.product.version };
@@ -268,7 +324,6 @@ export const ProductForm = forwardRef<ProductFormHandle, Props>(function Product
 
   const big = variant === "mobile";
 
-  const ean = isCreate ? props.ean : props.product.ean;
   const headerRight = isCreate ? (
     <span className="text-[10px] uppercase tracking-wider text-yellow-300">
       new · not in sheet
@@ -435,6 +490,68 @@ export const ProductForm = forwardRef<ProductFormHandle, Props>(function Product
             % off MRP fills the price — or type the price directly
           </span>
         </div>
+
+        <div className={"grid gap-3 " + (big ? "" : "sm:grid-cols-2")}>
+          <label className="space-y-1">
+            <span className={labelClass}>Batch</span>
+            <input
+              type="text"
+              value={batch}
+              onChange={(e) => setBatch(e.target.value)}
+              disabled={locked}
+              className={inputClass}
+              placeholder="open"
+            />
+          </label>
+          <label className="space-y-1">
+            <span className={labelClass}>Expiry date</span>
+            <input
+              type="date"
+              value={expiry}
+              onChange={(e) => setExpiry(e.target.value)}
+              disabled={locked}
+              className={inputClass}
+            />
+          </label>
+        </div>
+
+        {!isCreate && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className={labelClass}>Images ({images.length}/3)</span>
+              <a
+                href={`/image-capture?ean=${encodeURIComponent(ean)}`}
+                className="text-[11px] text-muted underline hover:text-text"
+              >
+                Add / capture →
+              </a>
+            </div>
+            {images.length === 0 ? (
+              <p className="text-[11px] text-muted/70">No images yet.</p>
+            ) : (
+              <div className="flex gap-2">
+                {images.map((img) => (
+                  <div key={img.id} className="relative">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={img.url}
+                      alt={`Image ${img.position + 1}`}
+                      className="h-16 w-16 rounded-md border border-border object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => deleteImage(img.id)}
+                      className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full border border-border bg-bg text-xs text-text hover:bg-border"
+                      aria-label="Delete image"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className={"mt-5 flex gap-3 " + (big ? "" : "justify-end")}>
